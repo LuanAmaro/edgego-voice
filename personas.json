@@ -1,0 +1,41 @@
+[
+  {
+    "id": "whatsapp-suporte",
+    "name": "WhatsApp Suporte (Opus)",
+    "description": "Otimizado para envio de mensagens de voz no WhatsApp com baixa latência e formato Opus.",
+    "voice": "pt-BR-ThalitaMultilingualNeural",
+    "format": "opus",
+    "speed": 1,
+    "pitch": "+0Hz",
+    "remove_filter": false,
+    "api_key": "",
+    "created_at": "2026-08-30T22:00:00Z",
+    "updated_at": "2026-08-30T22:00:00Z"
+  },
+  {
+    "id": "assistente-vendas",
+    "name": "Assistente de Vendas (MP3)",
+    "description": "Voz enérgica e clara para atendimento comercial e chatbots web.",
+    "voice": "pt-BR-AntonioNeural",
+    "format": "mp3",
+    "speed": 1.05,
+    "pitch": "+0Hz",
+    "remove_filter": false,
+    "api_key": "",
+    "created_at": "2026-08-30T22:00:00Z",
+    "updated_at": "2026-08-31T02:37:05.166331162Z"
+  },
+  {
+    "id": "fernanda-faladora",
+    "name": "fenanda",
+    "description": "fernanda faladora",
+    "voice": "pt-BR-ThalitaMultilingualNeural",
+    "format": "opus",
+    "speed": 1,
+    "pitch": "+0Hz",
+    "remove_filter": false,
+    "api_key": "",
+    "created_at": "2026-09-01T02:57:55.154846467Z",
+    "updated_at": "2026-09-01T03:34:15.909298843Z"
+  }
+]
