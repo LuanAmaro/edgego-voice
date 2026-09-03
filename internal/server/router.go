@@ -97,6 +97,9 @@ func SetupRouter(
 
 		// Rota dedicada de Personas (valida autenticação internamente)
 		r.Post("/persona/{id}/speech", speechHandler.GeneratePersonaSpeechHandler)
+
+		// Streaming WebSocket bidirecional para LLMs (valida autenticação internamente)
+		r.Get("/audio/stream", speechHandler.StreamSpeechWebSocket)
 	})
 
 	// Servir o Frontend Web compilado do Next.js

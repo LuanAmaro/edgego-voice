@@ -326,6 +326,20 @@ export function TagEditorToolbar({
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono">[risada]</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  insertTagAtCursor("[risos]");
+                  setShowSFXMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
+              >
+                <span className="flex items-center gap-1.5">
+                  <IonIcon name="happy-outline" className="text-xs text-muted-foreground group-hover:text-amber-400 transition-colors" />
+                  <span>Risos leves</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">[risos]</span>
+              </button>
 
               <div className="my-1 border-t border-border/60" />
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">

@@ -32,7 +32,7 @@ var (
 		// Fechamento de Estilo
 		`\[\/(?:estilo|style|alegre|cheerful|triste|sad|bravo|irritado|angry|animado|empolgado|excited|calmo|calm|gritando|shouting|amigavel|amigável|friendly|esperancoso|esperançoso|hopeful)\]|<\/mstts:express-as>|` +
 		// 18: Micro-expressões pontuais e fillers: [tosse], [suspiro], [respiracao], [pigarro], [risada], [hum], [entendi], [certo], [deixa-ver]
-		`\[(tosse|suspiro|respiracao|respiração|pigarro|risada|hum|hmm|entendi|certo|deixa-ver|filler:[^\]]+)\]` +
+		`\[(tosse|suspiro|respiracao(?:\s+humana)?|respiração(?:\s+humana)?|respiro|breath|pigarro|pigarreio|garganta|limpar\s+garganta|risada|risadas|risos|riso|laughter|laugh|haha|hehe|hum|hmm|entendi|certo|deixa-ver|filler:[^\]]+)\]` +
 		`)`)
 )
 

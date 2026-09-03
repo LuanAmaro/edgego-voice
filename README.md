@@ -28,6 +28,9 @@ Projetado especificamente para **atendimento telefônico (PABX, Asterisk, FreeSW
 ## ✨ Funcionalidades
 
 - ⚡ **Motor 100% Go Nativo & Gratuito ($0.00)**: Zero consumo de tokens ou APIs pagas de terceiros. Altíssimo throughput e baixo consumo de memória (~15MB a 30MB de RAM).
+- 🌊 **Streaming Bidirecional WebSocket para LLMs (`ws://.../v1/audio/stream`)**:
+  - **Ultra-Baixa Latência Conversacional (TTFB < 250ms)**: Agentes de IA enviam tokens de texto conforme a LLM gera; o áudio é sintetizado e entregue em chunks binários contínuos sem esperar a resposta inteira terminar.
+  - **Tag-Aware Sentence Chunker**: Máquina de estados em Go que impede cortes e fragmentação de tags (`[teclado:2s]`, `[pausa: 500ms]`) e preserva envelopes de fundo (`[callcenter]`) e telefone (`[telefone]`) entre chunks.
 - 🧠 **Cache de Alta Performance Sharded Segmented-LRU (SLRU)**:
   - **16 Shards Independentes**: Elimina a contenção de locks exclusivos na leitura, escalando linearmente em processadores multi-core.
   - **Segmented LRU (2Q/SLRU)**: Protege saudações e frases frequentes de telefonia contra descarte acidental (*scan pollution*) através de duas filas (Probatória e Protegida).

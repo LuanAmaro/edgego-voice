@@ -83,6 +83,8 @@ export function PlaygroundView({
       setPitchHz(parseHz(p.pitch));
       setBreakCommaMs(parseMs(p.break_comma, 150));
       setBreakPeriodMs(parseMs(p.break_period, 350));
+      setIsTelephony(p.telephony || false);
+      setIsAutoBreath(p.auto_breath || false);
     }
   }, [personas]);
 
@@ -264,7 +266,7 @@ export function PlaygroundView({
     : "idle";
 
   // Detecção de tags ativas no texto para badges
-  const sfxCount = (text.match(/\[(?:som|sfx|sound):\s*[^\]]+\]|\[(teclado|callcenter|ruido|ruído|ambiente|suspiro|tosse|pigarro):\s*[^\]]+\]/gi) || []).length;
+  const sfxCount = (text.match(/\[(?:som|sfx|sound):\s*[^\]]+\]|\[(?:teclado|callcenter|ruido|ruído|ambiente|suspiro|tosse|pigarro|risada|risos|respiracao|respiracao\s+humana|respiração|respiração\s+humana)(?::\s*[^\]]+)?\]/gi) || []).length;
   const pauseCount = (text.match(/\[(?:pausa|pause|break):\s*[^\]]+\]|\((?:pausa|pause|break):\s*[^)]+\)|<break\s+[^>]*\/?>/gi) || []).length;
   const hasAmbient = /\[(callcenter|teclado|ruido|ruído|ambiente)\]/i.test(text);
 

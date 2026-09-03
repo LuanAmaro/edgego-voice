@@ -50,6 +50,8 @@ export function PersonaModal({
   const [pitchHz, setPitchHz] = useState(0);
   const [breakCommaMs, setBreakCommaMs] = useState(150);
   const [breakPeriodMs, setBreakPeriodMs] = useState(350);
+  const [telephony, setTelephony] = useState(false);
+  const [autoBreath, setAutoBreath] = useState(false);
   const [sanitize, setSanitize] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isIdCustomized, setIsIdCustomized] = useState(false);
@@ -88,6 +90,8 @@ export function PersonaModal({
       setPitchHz(parseHz(editingPersona.pitch));
       setBreakCommaMs(parseMs(editingPersona.break_comma, 150));
       setBreakPeriodMs(parseMs(editingPersona.break_period, 350));
+      setTelephony(editingPersona.telephony || false);
+      setAutoBreath(editingPersona.auto_breath || false);
       setSanitize(!editingPersona.remove_filter);
       setIsIdCustomized(true);
     } else {
@@ -100,6 +104,8 @@ export function PersonaModal({
       setPitchHz(0);
       setBreakCommaMs(150);
       setBreakPeriodMs(350);
+      setTelephony(false);
+      setAutoBreath(false);
       setSanitize(true);
       setIsIdCustomized(false);
     }
@@ -139,6 +145,8 @@ export function PersonaModal({
         pitch: formattedPitch,
         break_comma: formattedBreakComma,
         break_period: formattedBreakPeriod,
+        telephony,
+        auto_breath: autoBreath,
         remove_filter: !sanitize,
       });
       onOpenChange(false);
@@ -353,6 +361,40 @@ export function PersonaModal({
               {t("ssmlBreakHint")}
             </p>
           </div>
+
+          {/* Telephony DSP Filter */}
+          <FieldLabel htmlFor="switch-telephony">
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldTitle>Modo Linha Telefônica (DSP 3.4kHz)</FieldTitle>
+                <FieldDescription>
+                  Aplica corte passa-faixa (300Hz-3.4kHz) e equalização de headset para simular atendimento telefônico real
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="switch-telephony"
+                checked={telephony}
+                onCheckedChange={setTelephony}
+              />
+            </Field>
+          </FieldLabel>
+
+          {/* Organic Breathing Filter */}
+          <FieldLabel htmlFor="switch-breath">
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldTitle>Micro-Respiração Orgânica</FieldTitle>
+                <FieldDescription>
+                  Injeta sons naturais de respiração humana entre parágrafos e pausas longas
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="switch-breath"
+                checked={autoBreath}
+                onCheckedChange={setAutoBreath}
+              />
+            </Field>
+          </FieldLabel>
 
           {/* Text Sanitizer Filter using Shadcn Field & Switch */}
           <FieldLabel htmlFor="switch-sanitize">

@@ -29,6 +29,8 @@ type Persona struct {
 	Pitch        string    `json:"pitch"`                  // Ajuste de tom (ex: "+0Hz", "+5Hz", "-10Hz")
 	BreakComma   string    `json:"break_comma,omitempty"`  // Pausa após vírgulas (ex: "150ms")
 	BreakPeriod  string    `json:"break_period,omitempty"` // Pausa após pontos (ex: "350ms")
+	Telephony    bool      `json:"telephony"`              // Filtro DSP de linha telefônica / PABX
+	AutoBreath   bool      `json:"auto_breath"`            // Micro-respirações orgânicas automáticas
 	RemoveFilter bool      `json:"remove_filter"`          // Se true, não sanitiza markdown/emojis
 	APIKey       string    `json:"api_key"`                // Chave exclusiva da persona (opcional)
 	CreatedAt    time.Time `json:"created_at"`
@@ -283,6 +285,8 @@ func (m *Manager) Update(id string, update Persona) (Persona, error) {
 	}
 	p.BreakComma = update.BreakComma
 	p.BreakPeriod = update.BreakPeriod
+	p.Telephony = update.Telephony
+	p.AutoBreath = update.AutoBreath
 	p.RemoveFilter = update.RemoveFilter
 	p.APIKey = update.APIKey
 	p.UpdatedAt = time.Now().UTC()

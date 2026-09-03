@@ -29,9 +29,9 @@ COPY --from=go-builder /app/edgego-voice /app/edgego-voice
 # Copiar bundle estático gerado pelo Next.js (pasta ./web)
 COPY web/ /app/web/
 
-# Copiar arquivos de configuração inicial
+# Copiar arquivos de configuração inicial e efeitos sonoros
 COPY voices.json /app/voices.json
-RUN mkdir -p /app/sfx
+COPY sfx/ /app/sfx/
 
 EXPOSE 5050
 

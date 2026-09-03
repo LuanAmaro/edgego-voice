@@ -7,9 +7,9 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // SFXType identifica o tipo de micro-efeito sonoro
@@ -45,16 +45,17 @@ func isMaleVoice(voice string) bool {
 // NormalizeSFXType converte apelidos e tags de efeitos para SFXType
 func NormalizeSFXType(name string) (SFXType, bool) {
 	lower := strings.ToLower(strings.TrimSpace(name))
+	lower = strings.ReplaceAll(lower, " ", "_")
 	switch lower {
-	case "pigarro", "throat", "limpar_garganta", "garganta":
+	case "pigarro", "pigarreio", "throat", "limpar_garganta", "garganta":
 		return SFXThroat, true
 	case "tosse", "cough", "cof", "tosse-feminina", "tosse-masculina":
 		return SFXCough, true
-	case "risada", "risos", "riso", "laughter", "laugh", "haha":
+	case "risada", "risadas", "risos", "riso", "laughter", "laugh", "haha", "hehe":
 		return SFXLaughter, true
 	case "suspiro", "sigh", "ah", "suspiro-feminino", "suspiro-masculino":
 		return SFXSigh, true
-	case "respiracao", "respiração", "respiro", "breath", "breathe", "inspira":
+	case "respiracao", "respiração", "respiracao_humana", "respiração_humana", "respiro", "breath", "breathe", "inspira":
 		return SFXBreath, true
 	case "hum", "hmm", "filler:hmm", "filler:hum":
 		return SFXType("hum"), true
@@ -90,14 +91,29 @@ func buildCandidateFileNames(name, voice string) []string {
 
 	var candidates []string
 
-	// Se o efeito for suspiro ou respiração orgânica:
-	if strings.Contains(cleanName, "suspiro") || strings.Contains(cleanName, "respirac") || strings.Contains(cleanName, "breath") || cleanName == "sigh" {
-		candidates = append(candidates, "suspiro"+genderSuffixAlt, "suspiro"+genderSuffix, "suspiro", "respiracao"+genderSuffixAlt)
+	// Se o efeito for respiração orgânica:
+	if strings.Contains(cleanName, "respirac") || strings.Contains(cleanName, "respiraç") || strings.Contains(cleanName, "breath") || strings.Contains(cleanName, "respiro") {
+		candidates = append(candidates, "respiracao"+genderSuffix, "respiracao"+genderSuffixAlt, "respiracao", "suspiro"+genderSuffixAlt)
+	}
+
+	// Se o efeito for suspiro:
+	if strings.Contains(cleanName, "suspiro") || cleanName == "sigh" {
+		candidates = append(candidates, "suspiro"+genderSuffixAlt, "suspiro"+genderSuffix, "suspiro")
 	}
 
 	// Se o efeito for tosse:
 	if strings.Contains(cleanName, "tosse") || cleanName == "cough" {
 		candidates = append(candidates, "tosse"+genderSuffix, "tosse"+genderSuffixAlt, "tosse")
+	}
+
+	// Se o efeito for pigarro:
+	if strings.Contains(cleanName, "pigarro") || strings.Contains(cleanName, "throat") || strings.Contains(cleanName, "garganta") {
+		candidates = append(candidates, "pigarro"+genderSuffixAlt, "pigarro"+genderSuffix, "pigarro")
+	}
+
+	// Se o efeito for risada ou risos:
+	if strings.Contains(cleanName, "ris") || strings.Contains(cleanName, "laugh") || strings.Contains(cleanName, "haha") || strings.Contains(cleanName, "hehe") {
+		candidates = append(candidates, "risada"+genderSuffix, "risada"+genderSuffixAlt, "risada", "risos"+genderSuffix, "risos"+genderSuffixAlt, "risos")
 	}
 
 	// Se o efeito for teclado:
@@ -162,11 +178,49 @@ func LoadCustomSFX(name, voice string) ([]byte, bool) {
 	return nil, false
 }
 
+// ConvertAudioBytesToFormat converte dados de áudio em memória para o formato especificado usando os parâmetros exatos do Edge TTS.
+func ConvertAudioBytesToFormat(audio []byte, format string) ([]byte, error) {
+	if len(audio) == 0 {
+		return audio, nil
+	}
+
+	lowerFormat := strings.ToLower(format)
+	// Se for WAV e já tiver cabeçalho RIFF, retorna direto sem chamar ffmpeg
+	if (strings.Contains(lowerFormat, "wav") || strings.Contains(lowerFormat, "pcm")) && len(audio) > 4 && string(audio[:4]) == "RIFF" {
+		return audio, nil
+	}
+
+	// Se for MP3 e já for MP3 (começa com sync word 0xFF 0xFB/F3/F2 ou ID3), retorna direto
+	if strings.Contains(lowerFormat, "mp3") && len(audio) > 3 {
+		if (audio[0] == 0xFF && (audio[1]&0xE0) == 0xE0) || (audio[0] == 'I' && audio[1] == 'D' && audio[2] == '3') {
+			return audio, nil
+		}
+	}
+
+	audioParams := GetAudioParams(format)
+	args := []string{"-y", "-i", "pipe:0"}
+	args = append(args, audioParams...)
+	args = append(args, "pipe:1")
+
+	cmd := exec.Command("ffmpeg", args...)
+	cmd.Stdin = bytes.NewReader(audio)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		slog.Warn("Falha ao converter áudio via ffmpeg, retornando buffer original", "error", err, "stderr", stderr.String())
+		return audio, nil
+	}
+
+	return stdout.Bytes(), nil
+}
+
 // GetAudioForSFX carrega do arquivo customizado do usuário em ./sfx ou gera forma de onda acústica.
 func GetAudioForSFX(sfxName, voice, format string) ([]byte, error) {
 	// 1. Tenta carregar do disco (com resolução inteligente de gênero e contexto de voz)
 	if customAudio, ok := LoadCustomSFX(sfxName, voice); ok {
-		return customAudio, nil
+		return ConvertAudioBytesToFormat(customAudio, format)
 	}
 
 	// 2. Fallback: gera áudio acústico puro sem fala
@@ -183,15 +237,15 @@ func GenerateAcousticSFX(sfxType SFXType, format string) ([]byte, error) {
 
 	switch sfxType {
 	case SFXThroat:
-		duration := 0.30
+		duration := 0.35
 		totalSamples := int(float64(sampleRate) * duration)
 		pcm = make([]int16, totalSamples)
 		for i := 0; i < totalSamples; i++ {
 			t := float64(i) / float64(sampleRate)
-			env := math.Exp(-math.Pow((t-0.07)/0.03, 2)) + 0.7*math.Exp(-math.Pow((t-0.18)/0.04, 2))
+			env := math.Exp(-math.Pow((t-0.08)/0.035, 2)) + 0.8*math.Exp(-math.Pow((t-0.22)/0.045, 2))
 			noise := (r.Float64()*2.0 - 1.0)
-			tone := math.Sin(2*math.Pi*700*t) + 0.4*math.Sin(2*math.Pi*1100*t)
-			val := (noise*0.7 + tone*0.3) * env * 11000
+			tone := math.Sin(2*math.Pi*260*t) + 0.4*math.Sin(2*math.Pi*520*t)
+			val := (noise*0.65 + tone*0.35) * env * 14000
 			pcm[i] = int16(math.Max(-32768, math.Min(32767, val)))
 		}
 
@@ -209,14 +263,39 @@ func GenerateAcousticSFX(sfxType SFXType, format string) ([]byte, error) {
 		}
 
 	case SFXSigh:
-		duration := 0.40
+		duration := 0.45
 		totalSamples := int(float64(sampleRate) * duration)
 		pcm = make([]int16, totalSamples)
 		for i := 0; i < totalSamples; i++ {
 			t := float64(i) / float64(sampleRate)
 			env := math.Sin(math.Pi * t / duration)
 			noise := (r.Float64()*2.0 - 1.0)
-			val := noise * env * 5500
+			val := noise * env * 6500
+			pcm[i] = int16(math.Max(-32768, math.Min(32767, val)))
+		}
+
+	case SFXLaughter:
+		duration := 0.75
+		totalSamples := int(float64(sampleRate) * duration)
+		pcm = make([]int16, totalSamples)
+		for i := 0; i < totalSamples; i++ {
+			t := float64(i) / float64(sampleRate)
+			env := math.Exp(-math.Pow((t-0.10)/0.05, 2)) + 0.75*math.Exp(-math.Pow((t-0.32)/0.06, 2)) + 0.50*math.Exp(-math.Pow((t-0.54)/0.06, 2))
+			tone := math.Sin(2*math.Pi*420*t) + 0.35*math.Sin(2*math.Pi*840*t)
+			noise := (r.Float64()*2.0 - 1.0)
+			val := (tone*0.75 + noise*0.25) * env * 16000
+			pcm[i] = int16(math.Max(-32768, math.Min(32767, val)))
+		}
+
+	case SFXBreath:
+		duration := 0.55
+		totalSamples := int(float64(sampleRate) * duration)
+		pcm = make([]int16, totalSamples)
+		for i := 0; i < totalSamples; i++ {
+			t := float64(i) / float64(sampleRate)
+			env := math.Exp(-math.Pow((t-0.32)/0.18, 2))
+			noise := (r.Float64()*2.0 - 1.0)
+			val := noise * env * 8000
 			pcm[i] = int16(math.Max(-32768, math.Min(32767, val)))
 		}
 
@@ -226,60 +305,17 @@ func GenerateAcousticSFX(sfxType SFXType, format string) ([]byte, error) {
 		pcm = make([]int16, totalSamples)
 	}
 
+	wavBytes, err := encodeWAV(pcm, sampleRate)
+	if err != nil {
+		return nil, err
+	}
+
 	lowerFormat := strings.ToLower(format)
-	if strings.Contains(lowerFormat, "wav") || strings.Contains(lowerFormat, "riff") {
-		return encodeWAV(pcm, sampleRate)
+	if strings.Contains(lowerFormat, "wav") || strings.Contains(lowerFormat, "pcm") {
+		return wavBytes, nil
 	}
 
-	dur := time.Duration(len(pcm)*1000/sampleRate) * time.Millisecond
-	return generateAcousticMP3Frames(pcm, dur), nil
-}
-
-func generateAcousticMP3Frames(samples []int16, duration time.Duration) []byte {
-	frameDuration := 24 * time.Millisecond
-	numFrames := int(math.Ceil(float64(duration) / float64(frameDuration)))
-	if numFrames <= 0 {
-		numFrames = 1
-	}
-
-	out := make([]byte, 0, numFrames*288)
-
-	for f := 0; f < numFrames; f++ {
-		frame := make([]byte, 288)
-		frame[0] = 0xFF
-		frame[1] = 0xF3
-		frame[2] = 0x50
-		frame[3] = 0xC0
-
-		startSample := f * 576
-		endSample := startSample + 576
-		if endSample > len(samples) {
-			endSample = len(samples)
-		}
-
-		var energy float64
-		if startSample < len(samples) {
-			for s := startSample; s < endSample; s++ {
-				energy += math.Abs(float64(samples[s]))
-			}
-			energy = energy / float64(endSample-startSample)
-		}
-
-		if energy > 200 {
-			gain := byte(math.Min(120, energy/150))
-			frame[4] = gain
-			frame[5] = 0x1A
-			frame[6] = 0x48
-
-			for b := 9; b < 288; b++ {
-				frame[b] = byte((f*37 + b*13) % 256)
-			}
-		}
-
-		out = append(out, frame...)
-	}
-
-	return out
+	return ConvertAudioBytesToFormat(wavBytes, format)
 }
 
 func encodeWAV(samples []int16, sampleRate int) ([]byte, error) {

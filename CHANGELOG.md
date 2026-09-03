@@ -9,14 +9,21 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 ## [Não Lançado] (Unreleased)
 
 ### ✨ Adicionado
+- **Streaming Bidirecional WebSocket para LLMs (`GET /v1/audio/stream`):**
+  - **Ultra-Baixa Latência Conversacional (TTFB < 250ms):** Permite que agentes de IA (n8n, Dify, Typebot, Python) enviem tokens textuais de LLM conforme são gerados; o EdgeGo sintetiza e transmite frames binários de áudio sentença a sentença.
+  - **Tag-Aware Sentence Chunker (`internal/audioorchestrator`):** Máquina de estados finitos que divide fluxos de tokens em sentenças sem jamais fragmentar tags (`[teclado:2s]`, `[pausa: 500ms]`) ou interromper envelopes de ambiente (`[callcenter]`) e linha telefônica (`[telefone]`).
+  - **Suporte a Hijacker e Flusher:** Middleware Go atualizado com suporte completo a conexões WebSocket persistentes e streaming chunked de alta vazão.
+- **Persistência Completa de Realismo Telefônico e Respiração nas Personas:**
+  - Suporte aos campos `telephony` e `auto_breath` na struct `Persona`, serialização em `personas.json`, formulário `PersonaModal.tsx` e herança automática nas rotas `/v1/persona/{id}/speech` e no Voice Studio.
 - **Filtro Acústico DSP de Linha Telefônica & PABX (`[telefone]...[/telefone]`):**
   - **Cadeia de Processamento em Go + FFmpeg:** Filtro passa-faixa estrito (300Hz a 3.400Hz), equalização de presença telefônica em 2.5kHz e compressão dinâmica para nivelamento de microfone headset.
   - **Eliminação do Efeito "Voz Limpa de Estúdio":** Faz com que o áudio sintetizado soe idêntico a um atendente humano real falando por um canal telefônico PSTN/GSM, ideal para PABX e robôs de atendimento.
   - **Suporte a Tag e Parâmetro REST:** Pode ser ativado via tag envolvente `[telefone]...[/telefone]` ou via parâmetro JSON `"telephony": true`.
-- **Fisiologia Vocal Orgânica (Respiração & Fillers Conversacionais):**
-  - **Respiração Humana (`[respiracao]`):** Inserção suave de micro-sons de inalação/respiração direcionados ao gênero da voz ativa (`suspiro-feminina.wav`, `suspiro-masculina.wav`) ou gerados proceduralmente.
+- **Fisiologia Vocal Orgânica Completa (Respiração, Pigarro, Risadas, Risos e Fillers):**
+  - **Novos Efeitos em Disco & Síntese Acústica:** Adicionados arquivos de alta fidelidade e modelos paramétricos para `[pigarro]` (limpeza de garganta com fricção glotal), `[risada]` e `[risos]` (gargalhada e risos leves ritmados) e `[respiracao]` / `[respiracao humana]` (inalação suave pré-fala), direcionados para vozes femininas e masculinas.
+  - **Transcodificação Transparente para MP3 24kHz Mono 48kbps:** O mixer agora converte automaticamente qualquer WAV customizado em disco para o mesmo formato de streaming do Edge TTS via FFmpeg, eliminando cliques, cortes ou problemas de decodificação no navegador.
   - **Fillers Conversacionais Anti-Silêncio:** Suporte a marcadores instantâneos como `[hum]`, `[entendi]`, `[certo]` e `[deixa-ver]` para eliminar silêncios mortos em aplicações conversacionais de IA.
-  - **Suporte no Voice Studio:** Novos controles no Inspetor lateral para ativar linha telefônica e micro-respirações automáticas, além de novos botões e presets na barra de ferramentas.
+  - **Suporte no Voice Studio:** Novos botões para `[risada]` e `[risos]`, detecção correta de tags pontuais nos badges de texto e presets no toolbar.
 - **Cache de Alta Performance Sharded Segmented-LRU (SLRU) & Deduplicação (`internal/audiocache`):**
   - **Particionamento em 16 Shards:** Distribuição com hash FNV-1a para eliminar a contenção de mutexes entre leituras concorrentes em processadores multi-core.
   - **Segmented LRU (Proteção contra Scan Pollution):** Duas filas internas (Probatória 25% e Protegida 75%) que garantem que saudações e respostas telefônicas frequentes nunca sejam expulsas por textos longos ocasionais.

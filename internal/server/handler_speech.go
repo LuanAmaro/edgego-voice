@@ -313,10 +313,19 @@ func (h *SpeechHandler) synthesizeForPersona(w http.ResponseWriter, r *http.Requ
 		pitch = "+0Hz"
 	}
 
+	telephony := p.Telephony
+	if req.Telephony {
+		telephony = true
+	}
+	autoBreath := p.AutoBreath
+	if req.AutoBreath {
+		autoBreath = true
+	}
+
 	formatInfo := edgetts.GetFormatInfo(format)
 
 	// Checar Cache SLRU em Memória (~0.1ms)
-	cacheKey := audiocache.GenerateKeyWithOptions(text, realVoice, format, speed, pitch, removeFilter, req.Telephony, req.AutoBreath)
+	cacheKey := audiocache.GenerateKeyWithOptions(text, realVoice, format, speed, pitch, removeFilter, telephony, autoBreath)
 	if cachedAudio, hit := h.cache.Get(cacheKey); hit {
 		w.Header().Set("Content-Type", formatInfo.MimeType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(cachedAudio)))
@@ -359,8 +368,8 @@ func (h *SpeechHandler) synthesizeForPersona(w http.ResponseWriter, r *http.Requ
 		Format:          format,
 		BreakComma:      breakComma,
 		BreakPeriod:     breakPeriod,
-		TelephonyFilter: req.Telephony,
-		AutoBreath:      req.AutoBreath,
+		TelephonyFilter: telephony,
+		AutoBreath:      autoBreath,
 	}
 
 	// Síntese de persona com deduplicação concorrente (singleflight)

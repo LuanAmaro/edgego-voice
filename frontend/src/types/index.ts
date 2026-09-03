@@ -8,6 +8,8 @@ export interface Persona {
   pitch: string;
   break_comma?: string;
   break_period?: string;
+  telephony?: boolean;
+  auto_breath?: boolean;
   remove_filter: boolean;
   api_key?: string;
   created_at?: string;
