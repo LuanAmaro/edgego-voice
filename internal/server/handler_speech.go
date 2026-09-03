@@ -28,6 +28,8 @@ type SpeechRequest struct {
 	Pitch          string  `json:"pitch"`
 	BreakComma     string  `json:"break_comma"`
 	BreakPeriod    string  `json:"break_period"`
+	Telephony      bool    `json:"telephony"`
+	AutoBreath     bool    `json:"auto_breath"`
 }
 
 type SpeechHandler struct {
@@ -142,8 +144,17 @@ func (h *SpeechHandler) GenerateSpeechHandler(w http.ResponseWriter, r *http.Req
 
 	formatInfo := edgetts.GetFormatInfo(format)
 
-	// 3. Checar Cache LRU em Memória (~1ms)
-	cacheKey := audiocache.GenerateKey(text, realVoice, format, speed, pitch, h.cfg.RemoveFilter)
+	// 3. Checar Cache SLRU em Memória (~0.1ms)
+	cacheKey := audiocache.GenerateKeyWithOptions(
+		text,
+		realVoice,
+		format,
+		req.Speed,
+		pitch,
+		h.cfg.RemoveFilter,
+		req.Telephony,
+		req.AutoBreath,
+	)
 	if cachedAudio, hit := h.cache.Get(cacheKey); hit {
 		w.Header().Set("Content-Type", formatInfo.MimeType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(cachedAudio)))
@@ -170,14 +181,16 @@ func (h *SpeechHandler) GenerateSpeechHandler(w http.ResponseWriter, r *http.Req
 	fw := &flushWriter{w: w, flusher: flusher}
 
 	opts := edgetts.SynthesizeOptions{
-		Text:        text,
-		Voice:       realVoice,
-		Rate:        rate,
-		Pitch:       pitch,
-		Language:    h.cfg.DefaultLanguage,
-		Format:      format,
-		BreakComma:  req.BreakComma,
-		BreakPeriod: req.BreakPeriod,
+		Text:            text,
+		Voice:           realVoice,
+		Rate:            rate,
+		Pitch:           pitch,
+		Language:        h.cfg.DefaultLanguage,
+		Format:          format,
+		BreakComma:      req.BreakComma,
+		BreakPeriod:     req.BreakPeriod,
+		TelephonyFilter: req.Telephony,
+		AutoBreath:      req.AutoBreath,
 	}
 
 	// Síntese com deduplicação concorrente (singleflight) para evitar picos de CPU e conexões repetidas
@@ -302,8 +315,8 @@ func (h *SpeechHandler) synthesizeForPersona(w http.ResponseWriter, r *http.Requ
 
 	formatInfo := edgetts.GetFormatInfo(format)
 
-	// Checar Cache LRU em Memória (~1ms)
-	cacheKey := audiocache.GenerateKey(text, realVoice, format, speed, pitch, removeFilter)
+	// Checar Cache SLRU em Memória (~0.1ms)
+	cacheKey := audiocache.GenerateKeyWithOptions(text, realVoice, format, speed, pitch, removeFilter, req.Telephony, req.AutoBreath)
 	if cachedAudio, hit := h.cache.Get(cacheKey); hit {
 		w.Header().Set("Content-Type", formatInfo.MimeType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(cachedAudio)))
@@ -338,14 +351,16 @@ func (h *SpeechHandler) synthesizeForPersona(w http.ResponseWriter, r *http.Requ
 	}
 
 	opts := edgetts.SynthesizeOptions{
-		Text:        text,
-		Voice:       realVoice,
-		Rate:        rate,
-		Pitch:       pitch,
-		Language:    h.cfg.DefaultLanguage,
-		Format:      format,
-		BreakComma:  breakComma,
-		BreakPeriod: breakPeriod,
+		Text:            text,
+		Voice:           realVoice,
+		Rate:            rate,
+		Pitch:           pitch,
+		Language:        h.cfg.DefaultLanguage,
+		Format:          format,
+		BreakComma:      breakComma,
+		BreakPeriod:     breakPeriod,
+		TelephonyFilter: req.Telephony,
+		AutoBreath:      req.AutoBreath,
 	}
 
 	// Síntese de persona com deduplicação concorrente (singleflight)

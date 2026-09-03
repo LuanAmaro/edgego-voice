@@ -180,3 +180,35 @@ func TestParseAmbientBlockAndDurationSFX(t *testing.T) {
 	}
 }
 
+func TestTelephonyTagAndFillers(t *testing.T) {
+	text := "[telefone] [callcenter] Olá! [respiracao] [hum] Deixe-me consultar seu protocolo [teclado:2s]. [/callcenter] [/telefone]"
+	segs := ParseSegments(text, "pt-BR-FranciscaNeural", "+0%", "+0Hz", nil)
+
+	var speechCount, breathCount, fillerCount int
+	for _, s := range segs {
+		if s.Type == SegmentSpeech {
+			speechCount++
+			if !s.TelephonyFilter {
+				t.Errorf("Segmento de fala deveria ter TelephonyFilter=true: %+v", s)
+			}
+			if s.AmbientTrack != "callcenter" {
+				t.Errorf("Segmento de fala deveria ter AmbientTrack=callcenter: %+v", s)
+			}
+		}
+		if s.Type == SegmentSFX && s.SFXType == "respiracao" {
+			breathCount++
+			if !s.TelephonyFilter {
+				t.Errorf("Segmento de respiração deveria ter TelephonyFilter=true: %+v", s)
+			}
+		}
+		if s.Type == SegmentSFX && s.SFXType == "hum" {
+			fillerCount++
+		}
+	}
+
+	if speechCount == 0 || breathCount == 0 || fillerCount == 0 {
+		t.Fatalf("Esperava encontrar fala, respiração e filler. Encontrou speech=%d breath=%d filler=%d", speechCount, breathCount, fillerCount)
+	}
+}
+
+

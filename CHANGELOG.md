@@ -9,6 +9,14 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 ## [Não Lançado] (Unreleased)
 
 ### ✨ Adicionado
+- **Filtro Acústico DSP de Linha Telefônica & PABX (`[telefone]...[/telefone]`):**
+  - **Cadeia de Processamento em Go + FFmpeg:** Filtro passa-faixa estrito (300Hz a 3.400Hz), equalização de presença telefônica em 2.5kHz e compressão dinâmica para nivelamento de microfone headset.
+  - **Eliminação do Efeito "Voz Limpa de Estúdio":** Faz com que o áudio sintetizado soe idêntico a um atendente humano real falando por um canal telefônico PSTN/GSM, ideal para PABX e robôs de atendimento.
+  - **Suporte a Tag e Parâmetro REST:** Pode ser ativado via tag envolvente `[telefone]...[/telefone]` ou via parâmetro JSON `"telephony": true`.
+- **Fisiologia Vocal Orgânica (Respiração & Fillers Conversacionais):**
+  - **Respiração Humana (`[respiracao]`):** Inserção suave de micro-sons de inalação/respiração direcionados ao gênero da voz ativa (`suspiro-feminina.wav`, `suspiro-masculina.wav`) ou gerados proceduralmente.
+  - **Fillers Conversacionais Anti-Silêncio:** Suporte a marcadores instantâneos como `[hum]`, `[entendi]`, `[certo]` e `[deixa-ver]` para eliminar silêncios mortos em aplicações conversacionais de IA.
+  - **Suporte no Voice Studio:** Novos controles no Inspetor lateral para ativar linha telefônica e micro-respirações automáticas, além de novos botões e presets na barra de ferramentas.
 - **Cache de Alta Performance Sharded Segmented-LRU (SLRU) & Deduplicação (`internal/audiocache`):**
   - **Particionamento em 16 Shards:** Distribuição com hash FNV-1a para eliminar a contenção de mutexes entre leituras concorrentes em processadores multi-core.
   - **Segmented LRU (Proteção contra Scan Pollution):** Duas filas internas (Probatória 25% e Protegida 75%) que garantem que saudações e respostas telefônicas frequentes nunca sejam expulsas por textos longos ocasionais.

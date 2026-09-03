@@ -47,8 +47,10 @@ type SynthesizeOptions struct {
 	Volume      string
 	Language    string
 	Format      string
-	BreakComma  string
-	BreakPeriod string
+	BreakComma      string
+	BreakPeriod     string
+	TelephonyFilter bool
+	AutoBreath      bool
 }
 
 // NewClient cria uma nova instância do cliente Edge TTS.

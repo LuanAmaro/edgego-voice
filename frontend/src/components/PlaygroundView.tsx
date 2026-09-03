@@ -52,6 +52,8 @@ export function PlaygroundView({
   const [pitchHz, setPitchHz] = useState(0);
   const [breakCommaMs, setBreakCommaMs] = useState(150);
   const [breakPeriodMs, setBreakPeriodMs] = useState(350);
+  const [isTelephony, setIsTelephony] = useState(false);
+  const [isAutoBreath, setIsAutoBreath] = useState(false);
   const [text, setText] = useState(
     "[callcenter]Olá! Seja bem-vindo ao atendimento EdgeGo Voice. [pausa: 1s] Só um momento enquanto consulto seu cadastro no sistema [teclado:4s]. Pronto, já encontrei seus dados! Como posso te ajudar hoje?[/callcenter]"
   );
@@ -171,6 +173,8 @@ export function PlaygroundView({
         pitch: formattedPitch,
         break_comma: breakCommaMs > 0 ? `${breakCommaMs}ms` : "",
         break_period: breakPeriodMs > 0 ? `${breakPeriodMs}ms` : "",
+        telephony: isTelephony,
+        auto_breath: isAutoBreath,
       };
 
       if (selectedPersonaId) {
@@ -180,6 +184,8 @@ export function PlaygroundView({
           pitch: formattedPitch,
           break_comma: breakCommaMs > 0 ? `${breakCommaMs}ms` : "",
           break_period: breakPeriodMs > 0 ? `${breakPeriodMs}ms` : "",
+          telephony: isTelephony,
+          auto_breath: isAutoBreath,
         };
       }
 
@@ -586,7 +592,56 @@ export function PlaygroundView({
               </div>
             </div>
 
-            {/* 5. Formato de Saída */}
+            {/* 5. Realismo Telefônico & Respiração Humana (DSP) */}
+            <div className="p-2.5 bg-secondary/30 rounded-lg border border-border/70 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <IonIcon name="call-outline" className="text-blue-400 text-xs" />
+                  <span>Realismo Telefônico & PABX</span>
+                </span>
+                <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
+                  DSP 3.4kHz
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="space-y-0.5 pr-2">
+                    <span className="text-xs text-foreground font-medium block group-hover:text-blue-400 transition-colors">
+                      Filtro Linha Telefônica
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Corte passa-faixa (300Hz-3.4kHz) e equalização headset
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isTelephony}
+                    onChange={(e) => setIsTelephony(e.target.checked)}
+                    className="h-4 w-4 rounded border-border bg-background text-primary accent-primary cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="space-y-0.5 pr-2">
+                    <span className="text-xs text-foreground font-medium block group-hover:text-emerald-400 transition-colors">
+                      Micro-Respiração Orgânica
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Inalação suave entre frases e parágrafos
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isAutoBreath}
+                    onChange={(e) => setIsAutoBreath(e.target.checked)}
+                    className="h-4 w-4 rounded border-border bg-background text-primary accent-primary cursor-pointer"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* 6. Formato de Saída */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
                 {t("outputFormatLabel")}

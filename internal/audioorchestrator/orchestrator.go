@@ -44,6 +44,11 @@ func SynthesizeOrchestrated(
 		audio, err := edgeClient.Synthesize(ctx, opts)
 		if err == nil {
 			metrics.EdgeChars = utf8.RuneCountInString(segments[0].Text)
+			if segments[0].TelephonyFilter || defaultOpts.TelephonyFilter {
+				if filtered, fErr := sfx.ApplyTelephonyFilter(audio, defaultOpts.Format); fErr == nil && len(filtered) > 0 {
+					audio = filtered
+				}
+			}
 		}
 		return audio, metrics, err
 	}
@@ -96,6 +101,13 @@ func SynthesizeOrchestrated(
 				}
 			}
 
+			// Aplicar filtro de linha telefônica se ativo para o segmento ou globalmente
+			if seg.TelephonyFilter || defaultOpts.TelephonyFilter {
+				if filtered, fErr := sfx.ApplyTelephonyFilter(sfxBytes, defaultOpts.Format); fErr == nil && len(filtered) > 0 {
+					sfxBytes = filtered
+				}
+			}
+
 			results[i] = sfxBytes
 			metrics.SFXCount++
 			continue
@@ -118,10 +130,18 @@ func SynthesizeOrchestrated(
 			segOpts.BreakPeriod = defaultOpts.BreakPeriod
 
 			audioData, err := edgeClient.Synthesize(ctx, segOpts)
-			if err == nil && len(audioData) > 0 && s.AmbientTrack != "" {
+			if err == nil && len(audioData) > 0 {
 				// Se houver trilha de fundo, mixar som ambiente
-				if mixed, mixErr := sfx.MixAmbientTrack(audioData, s.AmbientTrack, s.Voice, defaultOpts.Format, 0.45); mixErr == nil && len(mixed) > 0 {
-					audioData = mixed
+				if s.AmbientTrack != "" {
+					if mixed, mixErr := sfx.MixAmbientTrack(audioData, s.AmbientTrack, s.Voice, defaultOpts.Format, 0.45); mixErr == nil && len(mixed) > 0 {
+						audioData = mixed
+					}
+				}
+				// Se o segmento ou a chamada ativar linha telefônica, aplica o filtro DSP
+				if s.TelephonyFilter || defaultOpts.TelephonyFilter {
+					if filtered, fErr := sfx.ApplyTelephonyFilter(audioData, defaultOpts.Format); fErr == nil && len(filtered) > 0 {
+						audioData = filtered
+					}
 				}
 			}
 
@@ -178,7 +198,8 @@ func optimizeAndMergeSegments(segments []Segment) []Segment {
 			last.Voice == seg.Voice &&
 			last.Rate == seg.Rate &&
 			last.Pitch == seg.Pitch &&
-			last.AmbientTrack == seg.AmbientTrack {
+			last.AmbientTrack == seg.AmbientTrack &&
+			last.TelephonyFilter == seg.TelephonyFilter {
 			last.Text = strings.TrimSpace(last.Text) + " " + strings.TrimSpace(seg.Text)
 		} else {
 			merged = append(merged, seg)

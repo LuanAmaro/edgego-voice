@@ -54,8 +54,16 @@ func NormalizeSFXType(name string) (SFXType, bool) {
 		return SFXLaughter, true
 	case "suspiro", "sigh", "ah", "suspiro-feminino", "suspiro-masculino":
 		return SFXSigh, true
-	case "respiracao", "respiração", "breath", "breathe", "inspira":
+	case "respiracao", "respiração", "respiro", "breath", "breathe", "inspira":
 		return SFXBreath, true
+	case "hum", "hmm", "filler:hmm", "filler:hum":
+		return SFXType("hum"), true
+	case "entendi", "filler:entendi":
+		return SFXType("entendi"), true
+	case "certo", "filler:certo":
+		return SFXType("certo"), true
+	case "deixa-ver", "filler:deixa-ver", "deixaver":
+		return SFXType("deixa-ver"), true
 	case "teclado", "efeito-teclado", "digitando", "keyboard", "typing":
 		return SFXKeyboard, true
 	case "callcenter", "callcenter-ambiente", "ambiente", "escritorio", "escritório":
@@ -82,9 +90,9 @@ func buildCandidateFileNames(name, voice string) []string {
 
 	var candidates []string
 
-	// Se o efeito for suspiro:
-	if strings.Contains(cleanName, "suspiro") || cleanName == "sigh" {
-		candidates = append(candidates, "suspiro"+genderSuffixAlt, "suspiro"+genderSuffix, "suspiro")
+	// Se o efeito for suspiro ou respiração orgânica:
+	if strings.Contains(cleanName, "suspiro") || strings.Contains(cleanName, "respirac") || strings.Contains(cleanName, "breath") || cleanName == "sigh" {
+		candidates = append(candidates, "suspiro"+genderSuffixAlt, "suspiro"+genderSuffix, "suspiro", "respiracao"+genderSuffixAlt)
 	}
 
 	// Se o efeito for tosse:

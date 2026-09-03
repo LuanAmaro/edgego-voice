@@ -263,3 +263,41 @@ func MixAmbientTrack(speechAudio []byte, ambientName, voice, format string, volu
 
 	return stdout.Bytes(), nil
 }
+
+// ApplyTelephonyFilter aplica o processamento acústico DSP de canal telefônico (PSTN / G.711 / 3GPP):
+// - Filtro passa-faixa estrito de 300Hz a 3400Hz (elimina o efeito de "voz de estúdio limpa demais").
+// - Equalização de presença telefônica em 2.5kHz.
+// - Compressão dinâmica suave para nivelamento de microfone headset de atendimento.
+func ApplyTelephonyFilter(speechAudio []byte, format string) ([]byte, error) {
+	if len(speechAudio) == 0 {
+		return speechAudio, nil
+	}
+
+	audioParams := GetAudioParams(format)
+	// Filtro DSP: passa-alta 300Hz + passa-baixa 3400Hz + pico de presença em 2.5kHz + compressor suave
+	telephonyFilter := "highpass=f=300,lowpass=f=3400,equalizer=f=2500:t=q:w=1.2:g=2,acompressor=threshold=-14dB:ratio=2.5:attack=5:release=50"
+
+	args := []string{
+		"-y",
+		"-i", "pipe:0",
+		"-af", telephonyFilter,
+	}
+	args = append(args, audioParams...)
+	args = append(args, "pipe:1")
+
+	cmd := exec.Command("ffmpeg", args...)
+	cmd.Stdin = bytes.NewReader(speechAudio)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	slog.Info("Aplicando filtro acústico DSP de telefonia na voz", "tamanho_bytes", len(speechAudio))
+	if err := cmd.Run(); err != nil {
+		slog.Warn("Falha ao aplicar filtro DSP de telefonia, mantendo áudio original", "error", err, "stderr", stderr.String())
+		return speechAudio, nil
+	}
+
+	return stdout.Bytes(), nil
+}
+

@@ -33,6 +33,13 @@ Projetado especificamente para **atendimento telefônico (PABX, Asterisk, FreeSW
   - **Segmented LRU (2Q/SLRU)**: Protege saudações e frases frequentes de telefonia contra descarte acidental (*scan pollution*) através de duas filas (Probatória e Protegida).
   - **Deduplicação Concorrente (`Singleflight`)**: Evita o efeito manada (*cache stampede*). Se 30 chamadas solicitarem a mesma saudação no mesmo segundo, apenas 1 chamada ao sintetizador é realizada; as outras 29 aguardam e compartilham o mesmo buffer em memória.
   - **Zero Alocação na Leitura**: Busca em cache em apenas **176 nanosegundos** com **0 B/op e 0 allocs/op**.
+- 📞 **Filtro DSP de Linha Telefônica & PABX (`[telefone]`)**:
+  - Processamento acústico calibrado com corte passa-faixa estrito (**300Hz a 3.400Hz**), equalização de presença telefônica em 2.5kHz e compressão dinâmica de microfone headset.
+  - Elimina o efeito de "voz limpa de estúdio", fazendo com que o bot soe **100% indistinguível de um atendente humano real** em chamadas celulares ou PABX analógico/GSM.
+  - Pode ser ativado via tag `[telefone]...[/telefone]` ou pelo parâmetro `"telephony": true`.
+- 🌬️ **Fisiologia Vocal Orgânica (Respiração & Fillers Conversacionais)**:
+  - **Respiração Humana (`[respiracao]`)**: Inserção suave de micro-sons de inalação/respiração adequados ao gênero da voz, gerados proceduralmente ou via samples locais.
+  - **Fillers Conversacionais Anti-Silêncio**: Marcadores instantâneos (`[hum]`, `[entendi]`, `[certo]`, `[deixa-ver]`) para eliminar dead-air enquanto IAs processam prompts.
 - 🎧 **Mixer de Efeitos Sonoros (SFX) e Sons Ambiente**:
   - Tags de envelope para áudio de fundo contínuo: `[callcenter]...[/callcenter]`, `[ruido]`, `[ambiente]`.
   - **Simulação Procedural de Digitação Humana**: O algoritmo alterna aleatoriamente entre múltiplos arquivos de teclado com rajadas orgânicas (0.35s a 0.70s) e micro-pausas naturais de reflexão (250ms a 500ms), simulando um atendente digitando em tempo real.

@@ -34,7 +34,8 @@ type Segment struct {
 	SFXType     string
 	Rate         string
 	Pitch        string
-	Volume       string
-	AmbientTrack string
-	Duration     time.Duration
+	Volume          string
+	AmbientTrack    string
+	Duration        time.Duration
+	TelephonyFilter bool
 }

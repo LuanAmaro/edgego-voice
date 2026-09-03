@@ -108,8 +108,13 @@ func (c *Cache) getShard(key string) *cacheShard {
 }
 
 // GenerateKey gera um hash SHA256 único a partir dos parâmetros de síntese.
-// Otimizado com buffer pool para eliminar alocações de memória na rota crítica (golang-performance).
 func GenerateKey(text, voice, format string, speed float64, pitch string, removeFilter bool) string {
+	return GenerateKeyWithOptions(text, voice, format, speed, pitch, removeFilter, false, false)
+}
+
+// GenerateKeyWithOptions gera um hash SHA256 único incluindo opções avançadas como filtro de telefonia e respiração.
+// Otimizado com buffer pool para eliminar alocações de memória na rota crítica (golang-performance).
+func GenerateKeyWithOptions(text, voice, format string, speed float64, pitch string, removeFilter, telephony, autoBreath bool) string {
 	buf := bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer bufferPool.Put(buf)
@@ -125,6 +130,12 @@ func GenerateKey(text, voice, format string, speed float64, pitch string, remove
 	buf.WriteString(pitch)
 	buf.WriteByte('|')
 	buf.WriteString(strconv.FormatBool(removeFilter))
+	if telephony {
+		buf.WriteString("|tel:true")
+	}
+	if autoBreath {
+		buf.WriteString("|breath:true")
+	}
 
 	hash := sha256.Sum256(buf.Bytes())
 	return hex.EncodeToString(hash[:])

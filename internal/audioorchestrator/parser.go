@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	// reTag detecta pausas, vozes, velocidade, tom, efeitos sfx, ambiente e tags de estilo
+	// reTag detecta pausas, vozes, velocidade, tom, efeitos sfx, ambiente, telefone e tags de estilo
 	reTag = regexp.MustCompile(`(?i)(?:` +
 		// 1, 2, 3: Pausas
 		`\[(?:pausa|pause|break):\s*([0-9.]+(?:ms|s)?)\]|\((?:pausa|pause|break):\s*([0-9.]+(?:ms|s)?)\)|<break\s+time=["']?([0-9.]+(?:ms|s)?)["']?\s*\/?>|` +
@@ -20,19 +20,19 @@ var (
 		// 7: Tom
 		`\[(?:tom|pitch):\s*([+-]?[0-9]+(?:hz|%)?)\]|` +
 		// 8, 9, 10, 11: SFX com Duração explícita: [som:teclado:5s] ou [teclado:5s]
-		`\[(?:som|sfx|sound):\s*([^\]:]+)(?::\s*([0-9.]+(?:ms|s)?))?\]|\[(teclado|callcenter|ruido|ruído|ambiente|suspiro|tosse|pigarro):\s*([0-9.]+(?:ms|s)?)\]|` +
-		// 12: Fechamento de Ambiente: [/callcenter], [/teclado], [/ambiente], [/ruido]
-		`\[\/(callcenter|ambiente|escritorio|escritório|ruido|ruído|teclado)\]|` +
-		// 13: Abertura de Ambiente ou SFX: [callcenter], [ambiente], [ruido], [teclado]
-		`\[(callcenter|ambiente|escritorio|escritório|ruido|ruído|teclado)\]|` +
+		`\[(?:som|sfx|sound):\s*([^\]:]+)(?::\s*([0-9.]+(?:ms|s)?))?\]|\[(teclado|callcenter|ruido|ruído|ambiente|suspiro|respiracao|respiração|tosse|pigarro):\s*([0-9.]+(?:ms|s)?)\]|` +
+		// 12: Fechamento de Telefone ou Ambiente: [/telefone], [/callcenter], [/teclado], [/ambiente], [/ruido]
+		`\[\/(telefone|callcenter|ambiente|escritorio|escritório|ruido|ruído|teclado)\]|` +
+		// 13: Abertura de Telefone ou Ambiente: [telefone], [callcenter], [ambiente], [ruido], [teclado]
+		`\[(telefone|callcenter|ambiente|escritorio|escritório|ruido|ruído|teclado)\]|` +
 		// 14, 15, 16: Abertura de Estilo [estilo:cheerful]
 		`\[(?:estilo|style):\s*([^\]]+)\]|<mstts:express-as\s+style=["']?([^"'>]+)["']?\s*(?:styledegree=["']?([0-9.]+)["']?)?\s*>|` +
 		// 17: Emoções diretas: [alegre], [triste], etc
 		`\[(alegre|cheerful|triste|sad|bravo|irritado|angry|animado|empolgado|excited|calmo|calm|gritando|shouting|amigavel|amigável|friendly|esperancoso|esperançoso|hopeful)\]|` +
 		// Fechamento de Estilo
 		`\[\/(?:estilo|style|alegre|cheerful|triste|sad|bravo|irritado|angry|animado|empolgado|excited|calmo|calm|gritando|shouting|amigavel|amigável|friendly|esperancoso|esperançoso|hopeful)\]|<\/mstts:express-as>|` +
-		// 18: Micro-expressões pontuais: [tosse], [suspiro], [pigarro], [risada]
-		`\[(tosse|suspiro|pigarro|risada)\]` +
+		// 18: Micro-expressões pontuais e fillers: [tosse], [suspiro], [respiracao], [pigarro], [risada], [hum], [entendi], [certo], [deixa-ver]
+		`\[(tosse|suspiro|respiracao|respiração|pigarro|risada|hum|hmm|entendi|certo|deixa-ver|filler:[^\]]+)\]` +
 		`)`)
 )
 
@@ -65,19 +65,20 @@ func normalizeStyle(s string) string {
 	}
 }
 
-// buildSpeechSegment cria um bloco de fala com roteamento de provedor e trilha ambiente.
-func buildSpeechSegment(text, voice, style, rate, pitch, ambient string, styleDegree float64) Segment {
+// buildSpeechSegment cria um bloco de fala com roteamento de provedor, trilha ambiente e filtro de telefonia.
+func buildSpeechSegment(text, voice, style, rate, pitch, ambient string, styleDegree float64, telephony bool) Segment {
 	return Segment{
-		Type:         SegmentSpeech,
-		Provider:     ProviderEdge,
-		Text:         text,
-		Voice:        voice,
-		Style:        style,
-		StyleDegree:  styleDegree,
-		Rate:         rate,
-		Pitch:        pitch,
-		Volume:       "+0%",
-		AmbientTrack: ambient,
+		Type:            SegmentSpeech,
+		Provider:        ProviderEdge,
+		Text:            text,
+		Voice:           voice,
+		Style:           style,
+		StyleDegree:     styleDegree,
+		Rate:            rate,
+		Pitch:           pitch,
+		Volume:          "+0%",
+		AmbientTrack:    ambient,
+		TelephonyFilter: telephony,
 	}
 }
 
@@ -91,7 +92,7 @@ func ParseSegments(text, defaultVoice, defaultRate, defaultPitch string, voiceMa
 	matches := reTag.FindAllStringSubmatchIndex(text, -1)
 	if len(matches) == 0 {
 		return []Segment{
-			buildSpeechSegment(text, defaultVoice, "", defaultRate, defaultPitch, "", 1.0),
+			buildSpeechSegment(text, defaultVoice, "", defaultRate, defaultPitch, "", 1.0, false),
 		}
 	}
 
@@ -102,6 +103,7 @@ func ParseSegments(text, defaultVoice, defaultRate, defaultPitch string, voiceMa
 	currStyle := ""
 	currStyleDegree := 1.0
 	currAmbient := ""
+	currTelephony := false
 	lastIdx := 0
 
 	for _, matchIdx := range matches {
@@ -111,7 +113,7 @@ func ParseSegments(text, defaultVoice, defaultRate, defaultPitch string, voiceMa
 		if startTag > lastIdx {
 			prevText := strings.TrimSpace(text[lastIdx:startTag])
 			if prevText != "" {
-				segments = append(segments, buildSpeechSegment(prevText, currVoice, currStyle, currRate, currPitch, currAmbient, currStyleDegree))
+				segments = append(segments, buildSpeechSegment(prevText, currVoice, currStyle, currRate, currPitch, currAmbient, currStyleDegree, currTelephony))
 			}
 		}
 
@@ -180,23 +182,33 @@ func ParseSegments(text, defaultVoice, defaultRate, defaultPitch string, voiceMa
 					AmbientTrack: currAmbient,
 				})
 			} else if submatches[12] != "" {
-				// Fechamento de Ambiente [/callcenter], [/teclado], [/ambiente]
-				currAmbient = ""
-			} else if submatches[13] != "" {
-				// Abertura de Ambiente [callcenter], [teclado], [ambiente], etc
-				ambName := strings.TrimSpace(submatches[13])
-				closingTag := "[/" + strings.ToLower(ambName) + "]"
-				// Se o texto tiver a tag de fechamento correspondente adiante, ativa como ambiente envolvente
-				if strings.Contains(strings.ToLower(text[endTag:]), closingTag) {
-					currAmbient = ambName
+				// Fechamento de Telefone ou Ambiente
+				closed := strings.ToLower(strings.TrimSpace(submatches[12]))
+				if closed == "telefone" {
+					currTelephony = false
 				} else {
-					// Caso não haja fechamento, executa como SFX pontual
-					segments = append(segments, Segment{
-						Type:         SegmentSFX,
-						Provider:     ProviderSFX,
-						SFXType:      ambName,
-						AmbientTrack: currAmbient,
-					})
+					currAmbient = ""
+				}
+			} else if submatches[13] != "" {
+				// Abertura de Telefone ou Ambiente
+				ambName := strings.TrimSpace(submatches[13])
+				if strings.EqualFold(ambName, "telefone") {
+					currTelephony = true
+				} else {
+					closingTag := "[/" + strings.ToLower(ambName) + "]"
+					// Se o texto tiver a tag de fechamento correspondente adiante, ativa como ambiente envolvente
+					if strings.Contains(strings.ToLower(text[endTag:]), closingTag) {
+						currAmbient = ambName
+					} else {
+						// Caso não haja fechamento, executa como SFX pontual
+						segments = append(segments, Segment{
+							Type:            SegmentSFX,
+							Provider:        ProviderSFX,
+							SFXType:         ambName,
+							AmbientTrack:    currAmbient,
+							TelephonyFilter: currTelephony,
+						})
+					}
 				}
 			} else if submatches[14] != "" || submatches[15] != "" {
 				// Abertura de Estilo [estilo:cheerful]
@@ -215,12 +227,13 @@ func ParseSegments(text, defaultVoice, defaultRate, defaultPitch string, voiceMa
 				currStyle = normalizeStyle(submatches[17])
 				currStyleDegree = 1.0
 			} else if submatches[18] != "" {
-				// Micro-expressão pontual [tosse], [suspiro], [pigarro], [risada]
+				// Micro-expressão pontual ou filler [tosse], [suspiro], [respiracao], [pigarro], [hum], [entendi]
 				segments = append(segments, Segment{
-					Type:         SegmentSFX,
-					Provider:     ProviderSFX,
-					SFXType:      strings.TrimSpace(submatches[18]),
-					AmbientTrack: currAmbient,
+					Type:            SegmentSFX,
+					Provider:        ProviderSFX,
+					SFXType:         strings.TrimSpace(submatches[18]),
+					AmbientTrack:    currAmbient,
+					TelephonyFilter: currTelephony,
 				})
 			} else {
 				// Fechamento de estilo [/estilo], [/alegre]
@@ -236,7 +249,7 @@ func ParseSegments(text, defaultVoice, defaultRate, defaultPitch string, voiceMa
 	if lastIdx < len(text) {
 		remaining := strings.TrimSpace(text[lastIdx:])
 		if remaining != "" {
-			segments = append(segments, buildSpeechSegment(remaining, currVoice, currStyle, currRate, currPitch, currAmbient, currStyleDegree))
+			segments = append(segments, buildSpeechSegment(remaining, currVoice, currStyle, currRate, currPitch, currAmbient, currStyleDegree, currTelephony))
 		}
 	}
 

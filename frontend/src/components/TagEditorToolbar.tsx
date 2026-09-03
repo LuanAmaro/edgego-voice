@@ -110,12 +110,18 @@ export function TagEditorToolbar({
       .replace(/\[(?:velocidade|speed):\s*[^\]]+\]/gi, "")
       .replace(/\[(?:tom|pitch):\s*[^\]]+\]/gi, "")
       .replace(/\[(?:som|sfx|sound):\s*[^\]]+\]/gi, "")
-      .replace(/\[\/?(?:callcenter|ambiente|escritorio|escritório|ruido|ruído|teclado)[^\]]*\]/gi, "")
-      .replace(/\[(?:tosse|suspiro|pigarro|risada)\]/gi, "")
+      .replace(/\[\/?(?:telefone|callcenter|ambiente|escritorio|escritório|ruido|ruído|teclado)[^\]]*\]/gi, "")
+      .replace(/\[(?:tosse|suspiro|respiracao|pigarro|risada|hum|hmm|entendi|certo|deixa-ver|filler:[^\]]+)\]/gi, "")
       .replace(/<\/?(?:mstts:express-as|emphasis|say-as|sub|prosody)[^>]*>/gi, "")
       .replace(/\s+/g, " ")
       .trim();
     setText(cleaned);
+  };
+
+  // Carregar preset de Atendimento Telefônico com filtro DSP, callcenter e teclado
+  const handleLoadTelephonyPreset = () => {
+    const sample = `[telefone][callcenter]Olá! Seja bem-vindo ao suporte telefônico. [pausa: 500ms] [respiracao] Deixe-me consultar seu protocolo no sistema [teclado:3s]. [hum] Pronto, já localizei seu cadastro! Como posso ajudar hoje?[/callcenter][/telefone]`;
+    setText(sample);
   };
 
   // Carregar preset de Atendimento Callcenter com digitação procedural e pausas reais
@@ -152,8 +158,22 @@ export function TagEditorToolbar({
             <div className="absolute left-0 top-full mt-1 w-64 bg-zinc-900 border border-border rounded-md shadow-2xl z-50 p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100 max-h-96 overflow-y-auto">
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <IonIcon name="layers-outline" className="text-xs" />
-                <span>Sons Ambiente (Fundo)</span>
+                <span>Sons Ambiente & Linha</span>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  insertTagAtCursor("[telefone]", "[/telefone]");
+                  setShowSFXMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
+              >
+                <span className="flex items-center gap-1.5">
+                  <IonIcon name="call-outline" className="text-xs text-muted-foreground group-hover:text-blue-400 transition-colors" />
+                  <span>Linha Telefônica (DSP)</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">[telefone]</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -239,6 +259,20 @@ export function TagEditorToolbar({
               <button
                 type="button"
                 onClick={() => {
+                  insertTagAtCursor("[respiracao]");
+                  setShowSFXMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
+              >
+                <span className="flex items-center gap-1.5">
+                  <IonIcon name="fitness-outline" className="text-xs text-muted-foreground group-hover:text-emerald-400 transition-colors" />
+                  <span>Respiração Humana</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">[respiracao]</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   insertTagAtCursor("[suspiro]");
                   setShowSFXMenu(false);
                 }}
@@ -259,7 +293,7 @@ export function TagEditorToolbar({
                 className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
               >
                 <span className="flex items-center gap-1.5">
-                  <IonIcon name="fitness-outline" className="text-xs text-muted-foreground group-hover:text-amber-400 transition-colors" />
+                  <IonIcon name="medical-outline" className="text-xs text-muted-foreground group-hover:text-amber-400 transition-colors" />
                   <span>{t("sfxCough")}</span>
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono">[tosse]</span>
@@ -291,6 +325,54 @@ export function TagEditorToolbar({
                   <span>{t("sfxLaughter")}</span>
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono">[risada]</span>
+              </button>
+
+              <div className="my-1 border-t border-border/60" />
+              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <IonIcon name="chatbubbles-outline" className="text-xs" />
+                <span>Fillers Conversacionais</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  insertTagAtCursor("[hum]");
+                  setShowSFXMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
+              >
+                <span className="flex items-center gap-1.5">
+                  <IonIcon name="help-circle-outline" className="text-xs text-muted-foreground group-hover:text-amber-400 transition-colors" />
+                  <span>Hesitação ("Hum...")</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">[hum]</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  insertTagAtCursor("[entendi]");
+                  setShowSFXMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
+              >
+                <span className="flex items-center gap-1.5">
+                  <IonIcon name="checkmark-done-outline" className="text-xs text-muted-foreground group-hover:text-amber-400 transition-colors" />
+                  <span>Confirmação ("Entendi...")</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">[entendi]</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  insertTagAtCursor("[deixa-ver]");
+                  setShowSFXMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-zinc-800 flex items-center justify-between text-xs text-foreground group"
+              >
+                <span className="flex items-center gap-1.5">
+                  <IonIcon name="search-outline" className="text-xs text-muted-foreground group-hover:text-amber-400 transition-colors" />
+                  <span>Consulta ("Deixa eu ver...")</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">[deixa-ver]</span>
               </button>
             </div>
           )}
@@ -506,6 +588,17 @@ export function TagEditorToolbar({
 
           {showPresetsMenu && (
             <div className="absolute right-0 top-full mt-1 w-52 bg-zinc-900 border border-border rounded-md shadow-xl z-50 p-1 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+              <button
+                type="button"
+                onClick={() => {
+                  handleLoadTelephonyPreset();
+                  setShowPresetsMenu(false);
+                }}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-secondary text-xs text-foreground flex items-center gap-1.5"
+              >
+                <IonIcon name="call-outline" className="text-xs text-blue-400" />
+                <span>Telefonia PABX Real</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
