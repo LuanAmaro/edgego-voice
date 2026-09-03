@@ -118,9 +118,80 @@ func BenchmarkCacheGet(b *testing.B) {
 	cache.Set(key, make([]byte, 1024))
 
 	b.ResetTimer()
+	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			_, _ = cache.Get(key)
+		}
+	})
+}
+
+func BenchmarkCacheGetMiss(b *testing.B) {
+	cache := NewCache(true, 10, 1*time.Hour)
+	key := "chave-inexistente-para-medir-miss"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _ = cache.Get(key)
+		}
+	})
+}
+
+func BenchmarkCacheSet(b *testing.B) {
+	cache := NewCache(true, 50, 1*time.Hour)
+	data := make([]byte, 2048)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			k := fmt.Sprintf("bench-key-%d", i%1000)
+			cache.Set(k, data)
+			i++
+		}
+	})
+}
+
+func BenchmarkCacheMixed90Read10Write(b *testing.B) {
+	cache := NewCache(true, 50, 1*time.Hour)
+	data := make([]byte, 1024)
+
+	// Pré-popular chaves frequentes
+	for i := 0; i < 50; i++ {
+		k := fmt.Sprintf("frequent-prompt-%d", i)
+		cache.Set(k, data)
+		cache.Get(k) // promove para protegido
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			if i%10 == 0 {
+				cache.Set(fmt.Sprintf("write-key-%d", i%200), data)
+			} else {
+				_, _ = cache.Get(fmt.Sprintf("frequent-prompt-%d", i%50))
+			}
+			i++
+		}
+	})
+}
+
+func BenchmarkSingleflight(b *testing.B) {
+	group := NewGroup[[]byte]()
+	data := []byte("audio-sintetizado")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _, _ = group.Do("mesma-chave-concorrente", func() ([]byte, error) {
+				return data, nil
+			})
 		}
 	})
 }
@@ -129,6 +200,6 @@ func BenchmarkGenerateKey(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = GenerateKey("Olá! Seja bem-vindo ao suporte.", "pt-BR-FranciscaNeural", "mp3", 1.0, "+0Hz", false)
+		_ = GenerateKey("Olá! Seja bem-vindo ao suporte telefônico.", "pt-BR-FranciscaNeural", "mp3", 1.0, "+0Hz", false)
 	}
 }

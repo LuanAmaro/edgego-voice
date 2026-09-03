@@ -9,6 +9,12 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 ## [Não Lançado] (Unreleased)
 
 ### ✨ Adicionado
+- **Cache de Alta Performance Sharded Segmented-LRU (SLRU) & Deduplicação (`internal/audiocache`):**
+  - **Particionamento em 16 Shards:** Distribuição com hash FNV-1a para eliminar a contenção de mutexes entre leituras concorrentes em processadores multi-core.
+  - **Segmented LRU (Proteção contra Scan Pollution):** Duas filas internas (Probatória 25% e Protegida 75%) que garantem que saudações e respostas telefônicas frequentes nunca sejam expulsas por textos longos ocasionais.
+  - **Deduplicação Concorrente com `Singleflight`:** Agrupamento de requisições idênticas em andamento; múltiplas chamadas simultâneas compartilham a mesma síntese sem gerar conexões ou buffers duplicados.
+  - **Geração de Chaves Zero-Alloc:** Pool de buffers (`sync.Pool`) para reaproveitamento de memória na criação de hashes SHA-256.
+  - **Bateria Oficial de Benchmarks:** Adição de testes de performance (`BenchmarkCacheGet`, `BenchmarkCacheGetMiss`, `BenchmarkCacheSet`, `BenchmarkCacheMixed90Read10Write`, `BenchmarkSingleflight`, `BenchmarkGenerateKey`) comprovando leitura em **176.8 ns** e **0 alocações/op**.
 - **Voice Studio Workstation (Redesign Completo do Playground):**
   - **Layout de Estúdio Unificado:** Reformulação da interface em formato de estação de trabalho profissional (Canvas Central de Criação + Inspetor Lateral de Voz e Parâmetros), eliminando caixas vazias e múltiplos cards desconexos.
   - **Componente Oficial AI Elements Persona (`@rive-app/react-webgl2`):** Orbe animado em WebGL2 integrado organicamente no topo do Inspetor, reagindo em tempo real aos estados `idle` (respiração fluida), `thinking` (rotação ativa durante a geração) e `speaking` (ondulação sincronizada com o player de áudio).
