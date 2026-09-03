@@ -20,15 +20,17 @@ var (
 
 // Persona define as configurações de uma persona de voz dedicada.
 type Persona struct {
-	ID           string    `json:"id"`            // Slug único (ex: "atendimento-whatsapp")
-	Name         string    `json:"name"`          // Nome legível (ex: "Atendimento WhatsApp")
-	Description  string    `json:"description"`   // Descrição da finalidade
-	Voice        string    `json:"voice"`         // Voz neural (ex: "pt-BR-ThalitaMultilingualNeural")
-	Format       string    `json:"format"`        // Formato (mp3, opus, wav, etc.)
-	Speed        float64   `json:"speed"`         // Multiplicador de velocidade (0.25 a 2.0)
-	Pitch        string    `json:"pitch"`         // Ajuste de tom (ex: "+0Hz")
-	RemoveFilter bool      `json:"remove_filter"` // Se true, não sanitiza markdown/emojis
-	APIKey       string    `json:"api_key"`       // Chave exclusiva da persona (opcional)
+	ID           string    `json:"id"`                     // Slug único (ex: "atendimento-whatsapp")
+	Name         string    `json:"name"`                   // Nome legível (ex: "Atendimento WhatsApp")
+	Description  string    `json:"description"`            // Descrição da finalidade
+	Voice        string    `json:"voice"`                  // Voz neural (ex: "pt-BR-ThalitaMultilingualNeural")
+	Format       string    `json:"format"`                 // Formato (mp3, opus, wav, etc.)
+	Speed        float64   `json:"speed"`                  // Multiplicador de velocidade (0.25 a 2.0)
+	Pitch        string    `json:"pitch"`                  // Ajuste de tom (ex: "+0Hz", "+5Hz", "-10Hz")
+	BreakComma   string    `json:"break_comma,omitempty"`  // Pausa após vírgulas (ex: "150ms")
+	BreakPeriod  string    `json:"break_period,omitempty"` // Pausa após pontos (ex: "350ms")
+	RemoveFilter bool      `json:"remove_filter"`          // Se true, não sanitiza markdown/emojis
+	APIKey       string    `json:"api_key"`                // Chave exclusiva da persona (opcional)
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -71,6 +73,8 @@ func (m *Manager) seedDefaults() {
 			Format:       "opus",
 			Speed:        1.0,
 			Pitch:        "+0Hz",
+			BreakComma:   "150ms",
+			BreakPeriod:  "350ms",
 			RemoveFilter: false,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -82,7 +86,9 @@ func (m *Manager) seedDefaults() {
 			Voice:        "pt-BR-AntonioNeural",
 			Format:       "mp3",
 			Speed:        1.05,
-			Pitch:        "+0Hz",
+			Pitch:        "+2Hz",
+			BreakComma:   "120ms",
+			BreakPeriod:  "300ms",
 			RemoveFilter: false,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -94,7 +100,9 @@ func (m *Manager) seedDefaults() {
 			Voice:        "pt-BR-FranciscaNeural",
 			Format:       "wav",
 			Speed:        0.95,
-			Pitch:        "+0Hz",
+			Pitch:        "-2Hz",
+			BreakComma:   "200ms",
+			BreakPeriod:  "450ms",
 			RemoveFilter: false,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -273,6 +281,8 @@ func (m *Manager) Update(id string, update Persona) (Persona, error) {
 	if update.Pitch != "" {
 		p.Pitch = update.Pitch
 	}
+	p.BreakComma = update.BreakComma
+	p.BreakPeriod = update.BreakPeriod
 	p.RemoveFilter = update.RemoveFilter
 	p.APIKey = update.APIKey
 	p.UpdatedAt = time.Now().UTC()

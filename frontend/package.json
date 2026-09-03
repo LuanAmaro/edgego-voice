@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@rive-app/react-webgl2": "^4.33.1",
     "clsx": "^2.1.1",
     "country-flag-icons": "^1.6.20",
     "lucide-react": "^0.428.0",

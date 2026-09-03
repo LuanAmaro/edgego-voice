@@ -80,6 +80,24 @@ export function PersonaCard({
             {persona.speed.toFixed(2)}x
           </span>
         </div>
+
+        {persona.pitch && persona.pitch !== "+0Hz" && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">{t("pitchLabel")}</span>
+            <span className="font-mono text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded font-semibold">
+              {persona.pitch}
+            </span>
+          </div>
+        )}
+
+        {(persona.break_comma || persona.break_period) && (
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">{t("ssmlBreakSectionTitle")}</span>
+            <span className="font-mono text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+              {persona.break_comma || "0ms"} / {persona.break_period || "0ms"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Actions */}

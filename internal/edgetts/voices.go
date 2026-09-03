@@ -73,3 +73,16 @@ func (vm *VoiceManager) ResolveVoice(aliasOrName string) string {
 	}
 	return aliasOrName
 }
+
+// GetAllVoices retorna uma cópia de todas as vozes registradas.
+func (vm *VoiceManager) GetAllVoices() map[string]string {
+	vm.mu.RLock()
+	defer vm.mu.RUnlock()
+
+	copyMap := make(map[string]string, len(vm.voices))
+	for k, v := range vm.voices {
+		copyMap[k] = v
+	}
+	return copyMap
+}
+

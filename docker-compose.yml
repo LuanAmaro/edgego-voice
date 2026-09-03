@@ -22,3 +22,4 @@ services:
       - ./voices.json:/app/voices.json:ro
       - ./personas.json:/app/personas.json
       - ./web:/app/web
+      - ./sfx:/app/sfx

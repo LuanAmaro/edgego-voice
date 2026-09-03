@@ -1,31 +1,23 @@
 package server
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
 
 	"edgego-voice/internal/audiocache"
+	"edgego-voice/internal/audioorchestrator"
 	"edgego-voice/internal/config"
 	"edgego-voice/internal/edgetts"
 	"edgego-voice/internal/personas"
 	"edgego-voice/internal/textcleaner"
 )
-
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
 
 type SpeechRequest struct {
 	Model          string  `json:"model"`
@@ -34,6 +26,8 @@ type SpeechRequest struct {
 	ResponseFormat string  `json:"response_format"`
 	Speed          float64 `json:"speed"`
 	Pitch          string  `json:"pitch"`
+	BreakComma     string  `json:"break_comma"`
+	BreakPeriod    string  `json:"break_period"`
 }
 
 type SpeechHandler struct {
@@ -42,6 +36,7 @@ type SpeechHandler struct {
 	voiceManager    *edgetts.VoiceManager
 	personasManager *personas.Manager
 	cache           *audiocache.Cache
+	singleFlight    *audiocache.Group[[]byte]
 }
 
 func NewSpeechHandler(
@@ -57,6 +52,7 @@ func NewSpeechHandler(
 		voiceManager:    vm,
 		personasManager: pm,
 		cache:           cache,
+		singleFlight:    audiocache.NewGroup[[]byte](),
 	}
 }
 
@@ -66,12 +62,20 @@ type flushWriter struct {
 	flusher http.Flusher
 }
 
-func (fw *flushWriter) Write(p []byte) (n int, err error) {
-	n, err = fw.w.Write(p)
-	if fw.flusher != nil {
-		fw.flusher.Flush()
+func (w *flushWriter) Write(p []byte) (n int, err error) {
+	n, err = w.w.Write(p)
+	if w.flusher != nil {
+		w.flusher.Flush()
 	}
 	return n, err
+}
+
+func truncateSnippet(s string) string {
+	runes := []rune(s)
+	if len(runes) > 60 {
+		return string(runes[:57]) + "..."
+	}
+	return s
 }
 
 // GenerateSpeechHandler processa a rota OpenAI compatível POST /v1/audio/speech.
@@ -165,36 +169,49 @@ func (h *SpeechHandler) GenerateSpeechHandler(w http.ResponseWriter, r *http.Req
 	}
 	fw := &flushWriter{w: w, flusher: flusher}
 
-	// Buffer para armazenar no cache após o término
-	buf := bufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer bufferPool.Put(buf)
-
-	multiWriter := io.MultiWriter(fw, buf)
-
 	opts := edgetts.SynthesizeOptions{
-		Text:     text,
-		Voice:    realVoice,
-		Rate:     rate,
-		Pitch:    pitch,
-		Language: h.cfg.DefaultLanguage,
-		Format:   format,
+		Text:        text,
+		Voice:       realVoice,
+		Rate:        rate,
+		Pitch:       pitch,
+		Language:    h.cfg.DefaultLanguage,
+		Format:      format,
+		BreakComma:  req.BreakComma,
+		BreakPeriod: req.BreakPeriod,
 	}
 
-	if err := h.ttsClient.SynthesizeStream(r.Context(), opts, multiWriter); err != nil {
+	// Síntese com deduplicação concorrente (singleflight) para evitar picos de CPU e conexões repetidas
+	audioData, err, _ := h.singleFlight.Do(cacheKey, func() ([]byte, error) {
+		// Dupla verificação no cache caso outra chamada simultânea já tenha concluído
+		if cached, hit := h.cache.Get(cacheKey); hit {
+			return cached, nil
+		}
+
+		data, _, sErr := audioorchestrator.SynthesizeOrchestrated(
+			r.Context(),
+			h.ttsClient,
+			text,
+			opts,
+			h.voiceManager.GetAllVoices(),
+		)
+		if sErr == nil && len(data) > 0 {
+			h.cache.Set(cacheKey, data)
+		}
+		return data, sErr
+	})
+
+	if err != nil {
 		if r.Context().Err() != nil {
 			slog.Warn("Cliente cancelou a requisição antes do término da síntese")
 			return
 		}
-		slog.Error("Erro ao sintetizar áudio no Edge TTS", "error", err)
+		slog.Error("Erro ao sintetizar áudio", "error", err)
 		return
 	}
 
-	// Salvar no Cache LRU
-	if buf.Len() > 0 {
-		audioCopy := make([]byte, buf.Len())
-		copy(audioCopy, buf.Bytes())
-		h.cache.Set(cacheKey, audioCopy)
+	if _, err := fw.Write(audioData); err != nil {
+		slog.Error("Erro ao enviar dados de áudio para o cliente", "error", err)
+		return
 	}
 }
 
@@ -311,22 +328,46 @@ func (h *SpeechHandler) synthesizeForPersona(w http.ResponseWriter, r *http.Requ
 	}
 	fw := &flushWriter{w: w, flusher: flusher}
 
-	buf := bufferPool.Get().(*bytes.Buffer)
-	buf.Reset()
-	defer bufferPool.Put(buf)
-
-	multiWriter := io.MultiWriter(fw, buf)
-
-	opts := edgetts.SynthesizeOptions{
-		Text:     text,
-		Voice:    realVoice,
-		Rate:     rate,
-		Pitch:    pitch,
-		Language: h.cfg.DefaultLanguage,
-		Format:   format,
+	breakComma := p.BreakComma
+	if req.BreakComma != "" {
+		breakComma = req.BreakComma
+	}
+	breakPeriod := p.BreakPeriod
+	if req.BreakPeriod != "" {
+		breakPeriod = req.BreakPeriod
 	}
 
-	if err := h.ttsClient.SynthesizeStream(r.Context(), opts, multiWriter); err != nil {
+	opts := edgetts.SynthesizeOptions{
+		Text:        text,
+		Voice:       realVoice,
+		Rate:        rate,
+		Pitch:       pitch,
+		Language:    h.cfg.DefaultLanguage,
+		Format:      format,
+		BreakComma:  breakComma,
+		BreakPeriod: breakPeriod,
+	}
+
+	// Síntese de persona com deduplicação concorrente (singleflight)
+	audioData, err, _ := h.singleFlight.Do(cacheKey, func() ([]byte, error) {
+		if cached, hit := h.cache.Get(cacheKey); hit {
+			return cached, nil
+		}
+
+		data, _, sErr := audioorchestrator.SynthesizeOrchestrated(
+			r.Context(),
+			h.ttsClient,
+			text,
+			opts,
+			h.voiceManager.GetAllVoices(),
+		)
+		if sErr == nil && len(data) > 0 {
+			h.cache.Set(cacheKey, data)
+		}
+		return data, sErr
+	})
+
+	if err != nil {
 		if r.Context().Err() != nil {
 			slog.Warn("Cliente cancelou a requisição antes do término da síntese")
 			return
@@ -335,10 +376,8 @@ func (h *SpeechHandler) synthesizeForPersona(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Salvar no Cache LRU
-	if buf.Len() > 0 {
-		audioCopy := make([]byte, buf.Len())
-		copy(audioCopy, buf.Bytes())
-		h.cache.Set(cacheKey, audioCopy)
+	if _, err := fw.Write(audioData); err != nil {
+		slog.Error("Erro ao enviar áudio de persona para o cliente", "error", err)
+		return
 	}
 }

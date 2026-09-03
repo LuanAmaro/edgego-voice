@@ -13,12 +13,30 @@ var (
 	reCodeBlocks       = regexp.MustCompile("(?s)```.*?```")
 	reInlineCode       = regexp.MustCompile("`([^`]+)`")
 	reMarkdownHeaders  = regexp.MustCompile(`(?m)^\s*#{1,6}\s+`)
-	reHTMLTags         = regexp.MustCompile(`</?[^>]+(>|$)`)
+	reHTMLTags         = regexp.MustCompile(`(?i)</?([a-zA-Z0-9_:-]+)(?:\s+[^>]*)?/?>`)
 	reMultipleNewlines = regexp.MustCompile(`\n{2,}`)
 	reMultipleSpaces   = regexp.MustCompile(`[ \t]{2,}`)
+
+	ssmlAllowedTags = map[string]struct{}{
+		"break":            {},
+		"say-as":           {},
+		"emphasis":         {},
+		"sub":              {},
+		"phoneme":          {},
+		"prosody":          {},
+		"voice":            {},
+		"speak":            {},
+		"s":                {},
+		"p":                {},
+		"lang":             {},
+		"audio":            {},
+		"mstts:express-as": {},
+		"express-as":       {},
+		"sfx":              {},
+	}
 )
 
-// CleanText remove Markdown, tags HTML, emojis e caracteres indesejados para sintetização TTS.
+// CleanText remove Markdown, tags HTML não-SSML, emojis e caracteres indesejados para sintetização TTS.
 func CleanText(text string) string {
 	if text == "" {
 		return ""
@@ -35,13 +53,29 @@ func CleanText(text string) string {
 	text = reInlineCode.ReplaceAllString(text, "$1")
 	text = reMarkdownFormat.ReplaceAllString(text, "")
 	text = reMarkdownHeaders.ReplaceAllString(text, "")
-	text = reHTMLTags.ReplaceAllString(text, "")
 
-	// 3. Normalização de espaçamento
+	// 3. Remover tags HTML não-SSML mantendo tags SSML legítimas
+	text = removeNonSSMLTags(text)
+
+	// 4. Normalização de espaçamento
 	text = reMultipleNewlines.ReplaceAllString(text, "\n\n")
 	text = reMultipleSpaces.ReplaceAllString(text, " ")
 
 	return strings.TrimSpace(text)
+}
+
+// removeNonSSMLTags remove tags como <div>, <span>, <script>, mantendo <break>, <emphasis>, <say-as>, etc.
+func removeNonSSMLTags(text string) string {
+	return reHTMLTags.ReplaceAllStringFunc(text, func(match string) string {
+		submatches := reHTMLTags.FindStringSubmatch(match)
+		if len(submatches) > 1 {
+			tagName := strings.ToLower(submatches[1])
+			if _, ok := ssmlAllowedTags[tagName]; ok {
+				return match
+			}
+		}
+		return ""
+	})
 }
 
 // removeEmojis filtra runes que pertencem a faixas de emojis e símbolos especiais.

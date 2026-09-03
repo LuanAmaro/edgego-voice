@@ -14,10 +14,15 @@ interface WaveformPlayerProps {
     size: number;
     cacheHit?: boolean;
   } | null;
+  onPlayStateChange?: (isPlaying: boolean) => void;
 }
 
-export function WaveformPlayer({ audioUrl, format, personaId }: WaveformPlayerProps) {
+export function WaveformPlayer({ audioUrl, format, personaId, onPlayStateChange }: WaveformPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    onPlayStateChange?.(isPlaying);
+  }, [isPlaying, onPlayStateChange]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);

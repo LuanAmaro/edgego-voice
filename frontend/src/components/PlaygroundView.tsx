@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Persona, VoiceOption } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { IonIcon } from "@/components/ui/ion-icon";
 import { VoiceSelect } from "@/components/ui/voice-select";
 import { WaveformPlayer } from "@/components/WaveformPlayer";
 import { Textarea } from "@/components/ui/textarea";
+import { TagEditorToolbar } from "@/components/TagEditorToolbar";
+import { Persona as AiPersona, PersonaState } from "@/components/ai-elements/persona";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { formatBytes } from "@/lib/utils";
 import { useLanguage } from "@/i18n/LanguageContext";
 
@@ -37,35 +40,58 @@ export function PlaygroundView({
   selectedPersonaId: initialPersonaId,
 }: PlaygroundViewProps) {
   const { t } = useLanguage();
-  const initialPersona = personas.find((x) => x.id === initialPersonaId);
-
-  const [selectedPersonaId, setSelectedPersonaId] = useState(
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>(
     initialPersonaId || ""
   );
+
   const [voice, setVoice] = useState(
-    initialPersona?.voice || voices[0]?.id || "pt-BR-ThalitaMultilingualNeural"
+    voices[0]?.id || "pt-BR-FranciscaNeural"
   );
-  const [format, setFormat] = useState(initialPersona?.format || "mp3");
-  const [speed, setSpeed] = useState(initialPersona?.speed || 1.0);
+  const [format, setFormat] = useState("mp3");
+  const [speed, setSpeed] = useState(1.0);
+  const [pitchHz, setPitchHz] = useState(0);
+  const [breakCommaMs, setBreakCommaMs] = useState(150);
+  const [breakPeriodMs, setBreakPeriodMs] = useState(350);
   const [text, setText] = useState(
-    "Olá! Este é um teste no EdgeGo Voice para validar a velocidade e qualidade da voz sintetizada."
+    "[callcenter]Olá! Seja bem-vindo ao atendimento EdgeGo Voice. [pausa: 1s] Só um momento enquanto consulto seu cadastro no sistema [teclado:4s]. Pronto, já encontrei seus dados! Como posso te ajudar hoje?[/callcenter]"
   );
 
+  const parseHz = (val?: string) => {
+    if (!val) return 0;
+    const num = parseInt(val.replace("Hz", "").replace("hz", ""), 10);
+    return isNaN(num) ? 0 : num;
+  };
 
-  // Sincronizar parâmetros quando a Persona for alterada externamente (ex: botão "Testar")
+  const parseMs = (val?: string, fallback = 0) => {
+    if (!val) return fallback;
+    const num = parseInt(val.replace("ms", "").replace("s", "000"), 10);
+    return isNaN(num) ? fallback : num;
+  };
+
+  // Sincronizar com Persona selecionada
+  const applyPersona = useCallback((personaId: string) => {
+    setSelectedPersonaId(personaId);
+    if (!personaId) return;
+
+    const p = personas.find((x) => x.id === personaId);
+    if (p) {
+      setVoice(p.voice);
+      setFormat(p.format || "mp3");
+      setSpeed(p.speed || 1.0);
+      setPitchHz(parseHz(p.pitch));
+      setBreakCommaMs(parseMs(p.break_comma, 150));
+      setBreakPeriodMs(parseMs(p.break_period, 350));
+    }
+  }, [personas]);
+
   useEffect(() => {
     if (initialPersonaId) {
-      setSelectedPersonaId(initialPersonaId);
-      const p = personas.find((x) => x.id === initialPersonaId);
-      if (p) {
-        setVoice(p.voice);
-        setFormat(p.format || "mp3");
-        setSpeed(p.speed || 1.0);
-      }
+      applyPersona(initialPersonaId);
     }
-  }, [initialPersonaId, personas]);
+  }, [initialPersonaId, applyPersona]);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<ServerTelemetry | null>(null);
 
@@ -84,8 +110,20 @@ export function PlaygroundView({
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Buscar telemetria real do runtime Go
+  const showAlert = (
+    title: string,
+    message: string,
+    variant: "default" | "destructive" = "default"
+  ) => {
+    if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
+    setAlertInfo({ title, message, variant });
+    alertTimeoutRef.current = setTimeout(() => {
+      setAlertInfo(null);
+    }, 5000);
+  };
+
   const fetchTelemetry = async () => {
     try {
       const resp = await fetch(`${serverUrl}/health`);
@@ -93,63 +131,36 @@ export function PlaygroundView({
         const data = await resp.json();
         setTelemetry(data);
       }
-    } catch (e) {}
+    } catch {
+      // Ignora falhas de telemetria
+    }
   };
 
   useEffect(() => {
     fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 6000);
-    return () => clearInterval(interval);
+    const timer = setInterval(fetchTelemetry, 6000);
+    return () => clearInterval(timer);
   }, [serverUrl]);
 
-  // Auto-dismiss alert after 4.5s
-  useEffect(() => {
-    if (alertInfo) {
-      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
-      alertTimeoutRef.current = setTimeout(() => {
-        setAlertInfo(null);
-      }, 4500);
-    }
-    return () => {
-      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
-    };
-  }, [alertInfo]);
-
-  const handlePersonaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const pId = e.target.value;
-    setSelectedPersonaId(pId);
-    if (!pId) return;
-
-    const p = personas.find((x) => x.id === pId);
-    if (p) {
-      setVoice(p.voice);
-      setFormat(p.format);
-      setSpeed(p.speed);
-    }
-  };
-
   const handleSynthesize = async () => {
-    if (!text.trim()) return;
+    if (!text.trim()) {
+      showAlert(t("error"), "Por favor, digite um texto para sintetizar.", "destructive");
+      return;
+    }
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
+    abortControllerRef.current = new AbortController();
 
     setIsLoading(true);
     setAlertInfo(null);
-    setMetrics(null);
 
     const startTime = performance.now();
     let firstByteTime = 0;
 
     try {
+      const formattedPitch = pitchHz >= 0 ? `+${pitchHz}Hz` : `${pitchHz}Hz`;
       let endpoint = `${serverUrl}/v1/audio/speech`;
       let bodyData: any = {
         model: "tts-1",
@@ -157,11 +168,19 @@ export function PlaygroundView({
         voice,
         response_format: format,
         speed,
+        pitch: formattedPitch,
+        break_comma: breakCommaMs > 0 ? `${breakCommaMs}ms` : "",
+        break_period: breakPeriodMs > 0 ? `${breakPeriodMs}ms` : "",
       };
 
       if (selectedPersonaId) {
         endpoint = `${serverUrl}/v1/persona/${selectedPersonaId}/speech`;
-        bodyData = { input: text.trim() };
+        bodyData = {
+          input: text.trim(),
+          pitch: formattedPitch,
+          break_comma: breakCommaMs > 0 ? `${breakCommaMs}ms` : "",
+          break_period: breakPeriodMs > 0 ? `${breakPeriodMs}ms` : "",
+        };
       }
 
       const resp = await fetch(endpoint, {
@@ -171,360 +190,448 @@ export function PlaygroundView({
           "Content-Type": "application/json",
         },
         body: JSON.stringify(bodyData),
-        signal: controller.signal,
+        signal: abortControllerRef.current.signal,
       });
 
+      firstByteTime = performance.now();
+
       if (!resp.ok) {
-        const errJson = await resp.json().catch(() => ({}));
-        throw new Error(
-          errJson.error?.message || `Erro ${resp.status} ao sintetizar áudio.`
-        );
+        let errMessage = "Falha ao gerar áudio";
+        try {
+          const errData = await resp.json();
+          errMessage = errData.error?.message || errData.message || errMessage;
+        } catch {
+          // fallback
+        }
+        throw new Error(errMessage);
       }
 
       const isCacheHit = resp.headers.get("X-Cache") === "HIT";
+      const blob = await resp.blob();
+      const endTime = performance.now();
 
-      if (isCacheHit) {
-        const blob = await resp.blob();
-        const latency = Math.round(performance.now() - startTime);
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
 
-        const newUrl = URL.createObjectURL(blob);
-        setAudioUrl(newUrl);
-        setMetrics({
-          ttfb: latency,
-          totalTime: latency,
-          size: blob.size,
-          cacheHit: true,
-        });
+      const ttfb = Math.round(firstByteTime - startTime);
+      const totalTime = Math.round(endTime - startTime);
 
-        setAlertInfo({
-          variant: "default",
-          title: "Áudio Pronto (Cache HIT)",
-          message: `Entregue em ${latency}ms via memória RAM (${formatBytes(blob.size)})`,
-        });
-        fetchTelemetry();
-        return;
-      }
-
-      if (!resp.body) {
-        throw new Error("Streaming não suportado pelo navegador.");
-      }
-
-      const reader = resp.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let totalBytesReceived = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        if (value && value.length > 0) {
-          if (firstByteTime === 0) {
-            firstByteTime = Math.round(performance.now() - startTime);
-          }
-          chunks.push(value);
-          totalBytesReceived += value.length;
-        }
-      }
-
-      const totalTime = Math.round(performance.now() - startTime);
-
-      if (totalBytesReceived === 0) {
-        throw new Error("O áudio retornado está vazio. Tente outra voz neural.");
-      }
-
-      const mimeType =
-        format === "opus"
-          ? "audio/ogg; codecs=opus"
-          : format === "mp3"
-          ? "audio/mpeg"
-          : format === "wav"
-          ? "audio/wav"
-          : `audio/${format}`;
-      const finalBlob = new Blob(chunks as BlobPart[], { type: mimeType });
-      const newUrl = URL.createObjectURL(finalBlob);
-
-      setAudioUrl(newUrl);
       setMetrics({
-        ttfb: firstByteTime || totalTime,
+        ttfb,
         totalTime,
-        size: totalBytesReceived,
-        cacheHit: false,
-      });
-
-      setAlertInfo({
-        variant: "default",
-        title: "Áudio sintetizado",
-        message: `1º bloco em ${firstByteTime || totalTime}ms • Total: ${totalTime}ms (${formatBytes(totalBytesReceived)})`,
+        size: blob.size,
+        cacheHit: isCacheHit,
       });
 
       fetchTelemetry();
     } catch (err: any) {
       if (err.name === "AbortError") return;
-      setAlertInfo({
-        variant: "destructive",
-        title: "Falha na síntese",
-        message: err.message,
-      });
+      showAlert(t("error"), err.message || "Falha ao gerar áudio", "destructive");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Atalho de teclado: Ctrl+Enter / Cmd+Enter para sintetizar direto
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleSynthesize();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [text, voice, format, speed, pitchHz, breakCommaMs, breakPeriodMs, selectedPersonaId]);
+
+  // Identificar Persona ativa e características
+  const activePersona = personas.find((p) => p.id === selectedPersonaId);
+  const activeVoiceObj = voices.find((v) => v.id === voice);
+  const countryCode = activeVoiceObj?.country_code || "BR";
+  const voiceName = activeVoiceObj ? activeVoiceObj.name : voice;
+
+  // Estado dinâmico da Persona para o orbe animado
+  const personaState: PersonaState = isLoading
+    ? "thinking"
+    : isPlayingAudio
+    ? "speaking"
+    : "idle";
+
+  // Detecção de tags ativas no texto para badges
+  const sfxCount = (text.match(/\[(?:som|sfx|sound):\s*[^\]]+\]|\[(teclado|callcenter|ruido|ruído|ambiente|suspiro|tosse|pigarro):\s*[^\]]+\]/gi) || []).length;
+  const pauseCount = (text.match(/\[(?:pausa|pause|break):\s*[^\]]+\]|\((?:pausa|pause|break):\s*[^)]+\)|<break\s+[^>]*\/?>/gi) || []).length;
+  const hasAmbient = /\[(callcenter|teclado|ruido|ruído|ambiente)\]/i.test(text);
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto relative">
-      {/* Header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          {t("playgroundTitle")}
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          {t("playgroundSubtitle")}
-        </p>
-      </div>
-
-      {/* Real-time Telemetry Grid from Go Engine */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="p-3.5 bg-card/60 border-border/80 shadow-none flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {t("latencyTtfb")}
+    <div className="space-y-4">
+      {/* Studio Header Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+            <span>Voice Studio</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+              100% Go Nativo ($0)
             </span>
-            <IonIcon name="flash-outline" className="text-xs text-primary" />
-          </div>
-          <div className="text-xl font-bold text-foreground font-mono mt-1">
-            {metrics ? `${metrics.ttfb} ms` : "--"}
-          </div>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            {metrics?.cacheHit ? t("cacheHitYes") : t("cacheHitNo")}
-          </span>
-        </Card>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {t("playgroundSubtitle") || "Estúdio de síntese neural com micro-pausas e efeitos orgânicos"}
+          </p>
+        </div>
 
-        <Card className="p-3.5 bg-card/60 border-border/80 shadow-none flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {t("totalDuration")}
-            </span>
-            <IonIcon name="timer-outline" className="text-xs text-muted-foreground" />
-          </div>
-          <div className="text-xl font-bold text-foreground font-mono mt-1">
-            {metrics ? `${(metrics.totalTime / 1000).toFixed(2)} s` : "--"}
-          </div>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            {metrics ? formatBytes(metrics.size) : t("audioSize")}
-          </span>
-        </Card>
-
-        <Card className="p-3.5 bg-card/60 border-border/80 shadow-none flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {t("allocatedRam")}
-            </span>
-            <IonIcon name="hardware-chip-outline" className="text-xs text-muted-foreground" />
-          </div>
-          <div className="text-xl font-bold text-foreground font-mono mt-1">
-            {telemetry ? `${telemetry.alloc_mb.toFixed(2)} MB` : "--"}
-          </div>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            Heap: {telemetry ? `${telemetry.heap_inuse_mb.toFixed(1)} MB` : "--"} • Sys: {telemetry ? `${telemetry.sys_mb.toFixed(1)} MB` : "--"}
-          </span>
-        </Card>
-
-        <Card className="p-3.5 bg-card/60 border-border/80 shadow-none flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {t("goroutinesCount")}
-            </span>
-            <IonIcon name="pulse-outline" className="text-xs text-emerald-400" />
-          </div>
-          <div className="text-xl font-bold text-foreground font-mono mt-1 flex items-center gap-1.5">
-            <span>{telemetry ? telemetry.goroutines : "--"}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          </div>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            Cache: {telemetry ? `${telemetry.cache_items} itens (${formatBytes(telemetry.cache_bytes)})` : "--"}
-          </span>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Form Controls (6 cols) */}
-        <Card className="lg:col-span-6 p-5 space-y-4 bg-card/60 border-border/80 shadow-none">
-          {/* Persona selector */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("loadPersonaPreset")}
-            </label>
+        {/* Top Quick Persona Switcher */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground whitespace-nowrap">
+            Persona:
+          </label>
+          <div className="relative">
             <select
               value={selectedPersonaId}
-              onChange={handlePersonaChange}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+              onChange={(e) => applyPersona(e.target.value)}
+              className="h-8 pl-2.5 pr-7 rounded-md border border-border/80 bg-background text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary appearance-none cursor-pointer transition-colors"
             >
               <option value="">{t("noneCustom")}</option>
               {personas.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.id})
+                  {p.name}
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Voice Select */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("neuralVoiceLabel")}
-            </label>
-            <VoiceSelect
-              voices={voices}
-              value={voice}
-              onChange={(newVoice) => setVoice(newVoice)}
+            <IonIcon
+              name="chevron-down-outline"
+              className="absolute right-2 top-2.5 text-[10px] text-muted-foreground pointer-events-none"
             />
           </div>
+        </div>
+      </div>
 
-          {/* Format & Speed */}
-          <div className="grid grid-cols-2 gap-4">
+      {alertInfo && (
+        <Alert
+          variant={alertInfo.variant}
+          className="animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <IonIcon
+            name={
+              alertInfo.variant === "destructive"
+                ? "alert-circle-outline"
+                : "checkmark-circle-outline"
+            }
+            className="h-4 w-4"
+          />
+          <AlertTitle className="text-xs font-semibold">
+            {alertInfo.title}
+          </AlertTitle>
+          <AlertDescription className="text-xs">
+            {alertInfo.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Studio 2-Column Workstation */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Column: Studio Canvas (7 cols on lg, 8 cols on xl) */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-3.5">
+          {/* Textarea Studio Canvas */}
+          <div className="rounded-xl border border-border/80 bg-card/60 backdrop-blur-sm overflow-hidden shadow-sm transition-all focus-within:ring-1 focus-within:ring-primary focus-within:border-primary">
+            <TagEditorToolbar
+              textareaRef={textareaRef}
+              text={text}
+              setText={setText}
+              voices={voices}
+            />
+
+            <div className="p-3">
+              <Textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={7}
+                placeholder={t("textInputPlaceholder")}
+                className="w-full resize-none font-sans text-sm border-0 rounded-none focus-visible:ring-0 p-0 bg-transparent leading-relaxed"
+              />
+            </div>
+
+            {/* Footer do Canvas com Contadores de Tags e Atalho */}
+            <div className="px-3 py-2 bg-secondary/30 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[11px]">
+                  {text.length} caracteres
+                </span>
+
+                {hasAmbient && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-mono">
+                    <IonIcon name="layers-outline" className="text-xs" />
+                    <span>Ambiente Ativo</span>
+                  </span>
+                )}
+
+                {sfxCount > 0 && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-mono">
+                    <IonIcon name="volume-medium-outline" className="text-xs" />
+                    <span>{sfxCount}x SFX</span>
+                  </span>
+                )}
+
+                {pauseCount > 0 && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-300 border border-zinc-500/30 text-[10px] font-mono">
+                    <IonIcon name="timer-outline" className="text-xs" />
+                    <span>{pauseCount}x Pausas</span>
+                  </span>
+                )}
+              </div>
+
+              <span className="text-[10px] font-mono text-muted-foreground hidden sm:inline">
+                Ctrl + Enter para sintetizar
+              </span>
+            </div>
+          </div>
+
+          {/* Action Button: Sintetizar */}
+          <Button
+            onClick={handleSynthesize}
+            disabled={isLoading || !text.trim()}
+            className="w-full h-10 text-xs font-semibold shadow-sm transition-all"
+          >
+            {isLoading ? (
+              <>
+                <IonIcon name="sync-outline" className="text-sm animate-spin mr-2" />
+                <span>Sintetizando em tempo real com Go...</span>
+              </>
+            ) : (
+              <>
+                <IonIcon name="volume-high-outline" className="text-sm mr-2" />
+                <span>Sintetizar Áudio</span>
+              </>
+            )}
+          </Button>
+
+          {/* Integrated Waveform Player (Aparece diretamente sob o botão quando gerado) */}
+          {audioUrl && !isLoading && (
+            <div className="rounded-xl border border-border/80 bg-card/60 backdrop-blur-sm p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between mb-3 text-xs">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <IonIcon name="musical-notes-outline" className="text-primary text-xs" />
+                  <span>Áudio Gerado</span>
+                </span>
+                {metrics && (
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                    <span>TTFB: {metrics.ttfb}ms</span>
+                    <span>•</span>
+                    <span>{(metrics.totalTime / 1000).toFixed(2)}s</span>
+                    <span>•</span>
+                    <span>{formatBytes(metrics.size)}</span>
+                  </div>
+                )}
+              </div>
+              <WaveformPlayer
+                audioUrl={audioUrl}
+                format={format}
+                personaId={selectedPersonaId}
+                metrics={metrics}
+                onPlayStateChange={setIsPlayingAudio}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Studio Voice & Persona Inspector (5 cols on lg, 4 cols on xl) */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-4">
+          <Card className="p-4 bg-card/60 border-border/80 shadow-none space-y-4">
+            {/* 1. Persona Identity & Animated AI Elements Orb */}
+            <div className="flex items-center gap-3 pb-3 border-b border-border/60">
+              <div className="relative group shrink-0">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center bg-zinc-950 border border-border shadow-inner overflow-hidden">
+                  <AiPersona
+                    state={personaState}
+                    variant="obsidian"
+                    className="w-12 h-12"
+                  />
+                </div>
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background transition-colors ${
+                    personaState === "speaking"
+                      ? "bg-emerald-400 animate-ping"
+                      : personaState === "thinking"
+                      ? "bg-amber-400"
+                      : "bg-emerald-500"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <h4 className="font-semibold text-sm text-foreground truncate">
+                    {activePersona ? activePersona.name : "Voz Livre"}
+                  </h4>
+                  <span
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                      personaState === "speaking"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        : personaState === "thinking"
+                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                        : "bg-secondary text-muted-foreground border-border/40"
+                    }`}
+                  >
+                    {personaState === "speaking"
+                      ? "Reproduzindo"
+                      : personaState === "thinking"
+                      ? "Sintetizando..."
+                      : "Pronto"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {activePersona?.description || "Configuração manual de parâmetros"}
+                </p>
+              </div>
+            </div>
+
+            {/* 2. Voice Selection */}
             <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("neuralVoiceLabel")}
+              </label>
+              <VoiceSelect
+                voices={voices}
+                value={voice}
+                onChange={(newVoice) => setVoice(newVoice)}
+              />
+            </div>
+
+            {/* 3. Sliders de Velocidade e Tom */}
+            <div className="space-y-3 pt-1">
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>{t("speedLabel")}</span>
+                  <span className="font-mono text-foreground font-medium">
+                    {speed.toFixed(2)}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.05"
+                  value={speed}
+                  onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                  className="w-full accent-primary h-1.5 bg-secondary rounded-lg cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span>{t("pitchLabel")}</span>
+                  <span className="font-mono text-foreground font-medium">
+                    {pitchHz >= 0 ? `+${pitchHz}Hz` : `${pitchHz}Hz`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-20"
+                  max="20"
+                  step="1"
+                  value={pitchHz}
+                  onChange={(e) => setPitchHz(parseInt(e.target.value, 10))}
+                  className="w-full accent-primary h-1.5 bg-secondary rounded-lg cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* 4. Pausas & Expressividade Natural (SSML) */}
+            <div className="p-2.5 bg-secondary/30 rounded-lg border border-border/70 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <IonIcon name="timer-outline" className="text-primary text-xs" />
+                  <span>{t("ssmlBreakSectionTitle")}</span>
+                </span>
+                <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                  $0 Custo
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground mb-0.5">
+                    <span>{t("breakCommaLabel")}</span>
+                    <span className="font-mono text-emerald-400 font-medium">
+                      {breakCommaMs}ms
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="800"
+                    step="25"
+                    value={breakCommaMs}
+                    onChange={(e) => setBreakCommaMs(parseInt(e.target.value, 10))}
+                    className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground mb-0.5">
+                    <span>{t("breakPeriodLabel")}</span>
+                    <span className="font-mono text-emerald-400 font-medium">
+                      {breakPeriodMs}ms
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1200"
+                    step="50"
+                    value={breakPeriodMs}
+                    onChange={(e) => setBreakPeriodMs(parseInt(e.target.value, 10))}
+                    className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-zinc-800 rounded-lg appearance-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Formato de Saída */}
+            <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
                 {t("outputFormatLabel")}
               </label>
               <select
                 value={format}
                 onChange={(e) => setFormat(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+                className="flex h-8 w-full rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="mp3">MP3 (Universal)</option>
-                <option value="opus">Opus (WhatsApp / Telegram)</option>
-                <option value="wav">WAV (Sem perdas)</option>
-                <option value="pcm">PCM</option>
-                <option value="flac">FLAC</option>
-                <option value="aac">AAC</option>
+                <option value="mp3">MP3 (24kHz 48kbps Mono)</option>
+                <option value="wav">WAV (PCM 16-bit 24kHz)</option>
+                <option value="opus">Opus (Ogg Container 24kHz)</option>
+                <option value="aac">AAC (ADTS 24kHz)</option>
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-medium text-muted-foreground">
-                  {t("speedLabel")}
-                </label>
-                <span className="text-xs font-mono text-muted-foreground">
-                  {speed.toFixed(2)}x
+            {/* 6. Discreta Telemetria do Servidor em Go */}
+            <div className="pt-2 border-t border-border/50 grid grid-cols-2 gap-2 text-[10px] font-mono text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span>Latência TTFB:</span>
+                <span className="text-foreground">{metrics ? `${metrics.ttfb}ms` : "--"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Goroutines:</span>
+                <span className="text-foreground flex items-center gap-1">
+                  <span>{telemetry ? telemetry.goroutines : "--"}</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 </span>
               </div>
-              <input
-                type="range"
-                min="0.5"
-                max="2.0"
-                step="0.05"
-                value={speed}
-                onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                className="w-full mt-2.5 accent-primary h-1.5 bg-secondary rounded-lg cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Text Input Shadcn Component */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("textInputLabel")}
-            </label>
-            <Textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={4}
-              placeholder={t("textInputPlaceholder")}
-              className="resize-none"
-            />
-          </div>
-
-          <Button
-            onClick={handleSynthesize}
-            disabled={isLoading || !text.trim()}
-            className="w-full h-9 text-xs font-medium"
-          >
-            {isLoading ? (
-              <>
-                <IonIcon name="sync-outline" className="text-sm animate-spin mr-2" />
-                <span>{t("synthesizingButton")}</span>
-              </>
-            ) : (
-              <>
-                <IonIcon name="volume-high-outline" className="text-sm mr-2" />
-                <span>{t("synthesizeButton")}</span>
-              </>
-            )}
-          </Button>
-        </Card>
-
-        {/* Right Column: Waveform Player Card (6 cols) */}
-        <Card className="lg:col-span-6 p-5 flex flex-col items-center justify-center text-center space-y-4 bg-card/60 border-border/80 shadow-none min-h-[300px]">
-          {audioUrl && !isLoading ? (
-            <div className="w-full">
-              {/* Interactive Waveform Player */}
-              <WaveformPlayer
-                audioUrl={audioUrl}
-                format={format}
-                personaId={selectedPersonaId}
-                metrics={metrics}
-              />
-            </div>
-          ) : (
-            <div className="space-y-3 py-6">
-              <div className="w-12 h-12 mx-auto rounded-full bg-secondary/80 flex items-center justify-center text-muted-foreground text-xl">
-                <IonIcon
-                  name={isLoading ? "sync-outline" : "musical-notes-outline"}
-                  className={isLoading ? "animate-spin text-foreground" : ""}
-                />
+              <div className="flex items-center justify-between">
+                <span>RAM Alocada:</span>
+                <span className="text-foreground">
+                  {telemetry ? `${telemetry.alloc_mb.toFixed(1)}MB` : "--"}
+                </span>
               </div>
-
-              <div className="space-y-1">
-                <h3 className="text-xs font-medium text-foreground">
-                  {isLoading ? "Sintetizando áudio..." : "Waveform de Áudio"}
-                </h3>
-                <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                  {isLoading
-                    ? "Recebendo stream de pacotes em tempo real..."
-                    : "Digite um texto e clique em 'Gerar Áudio' para visualizar e escutar as ondas sonoras."}
-                </p>
+              <div className="flex items-center justify-between">
+                <span>Cache LRU:</span>
+                <span className="text-foreground">
+                  {telemetry ? `${telemetry.cache_items} itens` : "--"}
+                </span>
               </div>
             </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Subtle Bottom-Right Notification Toast with Solid Opaque Dark Background */}
-      {alertInfo && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm animate-toast pointer-events-auto">
-          <div
-            role="alert"
-            style={{ backgroundColor: "#09090b" }}
-            className="border border-zinc-700/90 text-foreground shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_0_1px_rgba(255,255,255,0.08)] p-3.5 flex items-start gap-3 rounded-xl transition-all"
-          >
-            <IonIcon
-              name={
-                alertInfo.variant === "destructive"
-                  ? "alert-circle-outline"
-                  : "checkmark-circle-outline"
-              }
-              className={`text-base mt-0.5 shrink-0 ${
-                alertInfo.variant === "destructive" ? "text-red-400" : "text-emerald-400"
-              }`}
-            />
-            <div className="flex-1 min-w-0 pr-1">
-              <h5 className="text-xs font-semibold text-foreground tracking-tight">
-                {alertInfo.title}
-              </h5>
-              <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
-                {alertInfo.message}
-              </p>
-            </div>
-            <button
-              onClick={() => setAlertInfo(null)}
-              className="text-zinc-400 hover:text-foreground text-sm shrink-0 -mt-0.5 p-1 rounded-md hover:bg-white/10 transition-colors"
-            >
-              <IonIcon name="close-outline" />
-            </button>
-          </div>
+          </Card>
         </div>
-      )}
+      </div>
     </div>
   );
 }

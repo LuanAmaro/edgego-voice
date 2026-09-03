@@ -21,7 +21,7 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata ffmpeg
 
 # Copiar binário compilado Go
 COPY --from=go-builder /app/edgego-voice /app/edgego-voice
@@ -31,6 +31,7 @@ COPY web/ /app/web/
 
 # Copiar arquivos de configuração inicial
 COPY voices.json /app/voices.json
+RUN mkdir -p /app/sfx
 
 EXPOSE 5050
 

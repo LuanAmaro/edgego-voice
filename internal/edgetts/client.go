@@ -40,13 +40,15 @@ type Client struct {
 
 // SynthesizeOptions define os parâmetros para a chamada de síntese.
 type SynthesizeOptions struct {
-	Text     string
-	Voice    string
-	Rate     string
-	Pitch    string
-	Volume   string
-	Language string
-	Format   string
+	Text        string
+	Voice       string
+	Rate        string
+	Pitch       string
+	Volume      string
+	Language    string
+	Format      string
+	BreakComma  string
+	BreakPeriod string
 }
 
 // NewClient cria uma nova instância do cliente Edge TTS.
@@ -99,33 +101,35 @@ func (c *Client) dialConnection(ctx context.Context) (*websocket.Conn, error) {
 	)
 
 	dialer := websocket.Dialer{
+		Proxy:             http.ProxyFromEnvironment,
+		HandshakeTimeout:  10 * time.Second,
+		EnableCompression: true,
 		NetDialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
+			Timeout:   10 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		TLSClientConfig:   &tls.Config{InsecureSkipVerify: false},
-		HandshakeTimeout:  6 * time.Second,
-		EnableCompression: false,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: false,
+		},
 	}
+
 	if c.proxyURL != nil {
 		dialer.Proxy = http.ProxyURL(c.proxyURL)
 	}
 
-	headers := make(http.Header)
-	headers.Set("Pragma", "no-cache")
-	headers.Set("Cache-Control", "no-cache")
+	headers := http.Header{}
 	headers.Set("Origin", originHeader)
 	headers.Set("User-Agent", userAgentHeader)
-	headers.Set("Accept-Encoding", "gzip, deflate, br, zstd")
-	headers.Set("Accept-Language", "en-US,en;q=0.9")
-	headers.Set("Cookie", fmt.Sprintf("muid=%s;", generateMUID()))
+	headers.Set("Pragma", "no-cache")
+	headers.Set("Cache-Control", "no-cache")
+	headers.Set("Cookie", fmt.Sprintf("muid=%s", generateMUID()))
 
 	conn, resp, err := dialer.DialContext(ctx, wsURL, headers)
 	if err != nil {
 		if resp != nil {
-			return nil, fmt.Errorf("falha ao conectar ao websocket do edge tts (status %d): %w", resp.StatusCode, err)
+			return nil, fmt.Errorf("falha ao conectar ao websocket Edge TTS (status %d): %w", resp.StatusCode, err)
 		}
-		return nil, fmt.Errorf("falha ao conectar ao websocket do edge tts: %w", err)
+		return nil, fmt.Errorf("falha ao conectar ao websocket Edge TTS: %w", err)
 	}
 
 	return conn, nil
@@ -177,8 +181,17 @@ func (c *Client) SynthesizeStream(ctx context.Context, opts SynthesizeOptions, w
 		lang = extractLangFromVoice(opts.Voice)
 	}
 
-	// 2. Enviar SSML Payload Completo
-	ssmlContent := BuildSSML(opts.Text, opts.Voice, opts.Rate, opts.Pitch, opts.Volume, lang)
+	// 2. Enviar SSML Payload Completo com suporte a pausas inteligentes e SSML avançado
+	ssmlContent := BuildSSMLWithOptions(opts.Text, SSMLOptions{
+		Voice:       opts.Voice,
+		Rate:        opts.Rate,
+		Pitch:       opts.Pitch,
+		Volume:      opts.Volume,
+		Lang:        lang,
+		BreakComma:  opts.BreakComma,
+		BreakPeriod: opts.BreakPeriod,
+	})
+	slog.Info("Enviando SSML para Edge TTS", "ssml", ssmlContent)
 	ssmlMessage := fmt.Sprintf(
 		"X-RequestId:%s\r\n"+
 			"Content-Type:application/ssml+xml\r\n"+

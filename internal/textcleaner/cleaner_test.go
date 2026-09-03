@@ -51,6 +51,11 @@ func TestCleanText(t *testing.T) {
 			expected: "Olá mundo, bem-vindo!",
 		},
 		{
+			name:     "Preservar Tags SSML Legítimas",
+			input:    "Atenção! <break time=\"400ms\"/> Este é um teste com <emphasis level=\"strong\">ênfase</emphasis>.",
+			expected: "Atenção! <break time=\"400ms\"/> Este é um teste com <emphasis level=\"strong\">ênfase</emphasis>.",
+		},
+		{
 			name:     "String Vazia",
 			input:    "",
 			expected: "",

@@ -28,6 +28,10 @@ Ele foi projetado para atuar como um *drop-in replacement* gratuito e ultra-ráp
 ## ✨ Funcionalidades
 
 - ⚡ **Motor Nativo em Golang**: Consumo mínimo de memória (~20MB de RAM) e altíssimo throughput de requisições simultâneas sem bloqueio de GIL.
+- 💎 **Motor Híbrido Inteligente (Edge + Azure)**: Balanceamento automático entre a API gratuita do Edge TTS (custo $0) para trechos neutros e a API da Microsoft Azure Speech para trechos com emoções, sussurros e expressões dramáticas, economizando de 80% a 95% em relação ao uso 100% pago.
+- 🎭 **Tags de Emoções e Estilos**: Suporte direto no texto a `[sussurro]`, `[alegre]`, `[triste]`, `[bravo]`, `[calmo]`, `[animado]`, `[gritando]`, `[amigavel]` e SSML `<mstts:express-as>`.
+- 🔊 **Banco Local de SFX (Efeitos Biológicos)**: Injeção sem custo e instantânea (<1ms) de efeitos acústicos humanos como `[som:pigarro]`, `[som:tosse]`, `[som:risada]`, `[som:suspiro]` e `[som:respiracao]`.
+- 📊 **Dashboard de Tokens & Economia (Shadcn UI)**: Gráficos visuais de consumo em tempo real de tokens EdgeGo Grátis vs Azure Paga vs Cache LRU com cálculo automático da economia em dólar ($ USD).
 - 🤖 **100% Compatível com OpenAI TTS**: Compatível com as SDKs oficiais da OpenAI em Python, Node.js, Go, PHP, cURL e ferramentas No-Code.
 - 🎭 **Sistema de Personas de Áudio**: Crie e gerencie perfis dedicados (voz, velocidade, formato e filtros) acessíveis diretamente via rota `/v1/persona/{id}/speech`.
 - 🧠 **Cache LRU em Memória Thread-Safe**: Resposta em **< 1ms** para frases repetidas através de chaveamento criptográfico SHA-256 com limite configurável de memória e expiração TTL.

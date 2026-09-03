@@ -33,7 +33,7 @@ func main() {
 		})))
 	}
 
-	// 3. Inicializar Componentes de Negócio & Cache LRU
+	// 3. Inicializar Componentes de Negócio, Clientes TTS & Cache LRU
 	voiceManager := edgetts.NewVoiceManager("voices.json")
 	personasManager := personas.NewManager("personas.json")
 	ttsClient := edgetts.NewClient(cfg.Proxy)
@@ -52,12 +52,13 @@ func main() {
 
 	// 5. Exibir Banner de Inicialização
 	fmt.Println("=====================================================================")
-	fmt.Println("      🔊 Iniciando o EdgeGo Voice Engine 🇧🇷 (Go Nativo)")
+	fmt.Println("      🔊 Iniciando o EdgeGo Voice Engine 🇧🇷 (100% Go Nativo - $0)")
 	fmt.Println("=====================================================================")
 	fmt.Println("🐹 Linguagem: Go (Golang) - Alta Performance e Baixa Latência")
 	fmt.Println("⚙️  Servidor: Go net/http + Chi Router (Streaming)")
 	fmt.Println("🎭 Módulo de Personas: Ativo (CRUD & API dedicadas)")
 	fmt.Printf("🧠 Cache de Áudio LRU: %v (Max: %d MB)\n", cfg.CacheEnabled, cfg.CacheMaxMB)
+	fmt.Println("🟢 Motor de Áudio: Edge TTS + SFX Mixer (100% Gratuito / Zero Tokens)")
 	fmt.Printf("🌐 Servidor / Painel Web: http://%s\n", addr)
 	fmt.Printf("🔑 Exigir chave de API: %v\n", cfg.RequireAPIKey)
 	fmt.Printf("🎤 Voz Padrão: %s\n", cfg.DefaultVoice)

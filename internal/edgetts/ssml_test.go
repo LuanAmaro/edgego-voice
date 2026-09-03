@@ -49,3 +49,56 @@ func TestBuildSSML(t *testing.T) {
 		t.Errorf("BuildSSML taxa de velocidade incorreta: %s", ssml)
 	}
 }
+
+func TestBuildSSMLWithOptions_NaturalPauses(t *testing.T) {
+	opts := SSMLOptions{
+		Voice:       "pt-BR-ThalitaMultilingualNeural",
+		Rate:        "+0%",
+		Pitch:       "+5Hz",
+		Lang:        "pt-BR",
+		BreakComma:  "150ms",
+		BreakPeriod: "350ms",
+	}
+
+	text := "Olá, como você está? Espero que bem. O valor é R$ 10,50 e pi é 3.14."
+	ssml := BuildSSMLWithOptions(text, opts)
+
+	if !strings.Contains(ssml, "pitch='+5Hz'") {
+		t.Errorf("Pitch incorreto no SSML: %s", ssml)
+	}
+
+	if !strings.Contains(ssml, "Olá,") {
+		t.Errorf("Vírgula com respiro incorreta: %s", ssml)
+	}
+
+	// Verificar se não corrompeu números
+	if !strings.Contains(ssml, "3.14") {
+		t.Errorf("Número decimal corrompido: %s", ssml)
+	}
+}
+
+func TestBuildSSMLWithOptions_ConvertBreakTags(t *testing.T) {
+	opts := SSMLOptions{
+		Voice: "pt-BR-AntonioNeural",
+		Rate:  "+0%",
+		Pitch: "-2Hz",
+		Lang:  "pt-BR",
+	}
+
+	text := "Atenção! <break time=\"500ms\"/> Este é um teste com <emphasis level=\"strong\">ênfase</emphasis> & clareza."
+	ssml := BuildSSMLWithOptions(text, opts)
+
+	if !strings.Contains(ssml, "pitch='-2Hz'") {
+		t.Errorf("Pitch incorreto no SSML: %s", ssml)
+	}
+
+	if !strings.Contains(ssml, "Atenção! ... Este é um teste com") {
+		t.Errorf("Conversão SSML incorreta: %s", ssml)
+	}
+
+	if !strings.Contains(ssml, "&amp; clareza.") {
+		t.Errorf("Ampersand '&' não foi escapado: %s", ssml)
+	}
+}
+
+

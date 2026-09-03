@@ -6,6 +6,8 @@ export interface Persona {
   format: string;
   speed: number;
   pitch: string;
+  break_comma?: string;
+  break_period?: string;
   remove_filter: boolean;
   api_key?: string;
   created_at?: string;
@@ -24,3 +26,4 @@ export interface VoiceOption {
 }
 
 export type TabType = "personas" | "playground" | "apidocs";
+
